@@ -1,0 +1,138 @@
+Extract records from Australia Living Atlas data
+========================================================
+This script extracts records of threatened species (& other species we are interested in) from the regional data files downloaded from the Australian Living Atlas and NatureMap. 
+
+Data were downloaded by selecting the Perth, Northern Jarrah Forest and Dandarragan Plain bioregions and then downloading all records within these region in large taxonomic blocks.  
+ 
+The script uses a function `extract` to identify whether data for each species in `species.list` has been downloaded from the regional ALA database based on the scientific name.  Note that sub-species will be lumped together unless they are specifically listed in `species.list`. If data exists, the records for each species are saved as a separate csv file by their scientific name.  Data are not filtered by data or location quality at this stage The master threatened species file is updated to reflect that the data has been downloaded and lists the number of records for that species.  
+
+The script loops through each taxonomic group and extracts the records for species listed in `threatened species`, then combines the regional data together for each species.  A print out to the screen lists the number of records successfully downloaded for each available species and this data is also updated in the threatened species list.
+
+```{r functions, highlight=TRUE}
+# set working directory
+rm(list=ls())
+setwd("C:/Users/awhitehead/Documents/GIS_data/Perth-Peel/species data")
+
+rbind.match.columns <- function (input1,input2) {
+    n.input1 <- ncol(input1)
+    n.input2 <- ncol(input2)
+    
+    if(n.input2 < n.input1) {
+      TF.names <- which(names(input2) %in% names(input1))
+      column.names <- names(input2[,TF.names])
+      } else {
+        TF.names <- which(names(input1) %in% names(input2))
+        column.names <- names(input1[,TF.names])
+      }
+    
+    output <- rbind(input1[,column.names], input2[,column.names])
+  }
+
+extract <- function(folder, region, input,species){
+  records <- input[grep(species,input$Scientific.Name),]
+  if(nrow(records)>0) {
+    cat(nrow(records), "records for",as.character(species),"successfully extracted from",region,"in",folder,"\n")
+    return(records)
+  } 
+}
+
+combine.records <- function (NC.records, SB.records) {
+  tryCatch({
+            rbind.match.columns(NC.records,SB.records)
+            }, error = function(err){
+              if(is.null(NC.records)==TRUE & is.null(SB.records)==FALSE){
+                return(SB.records)
+              } else if(is.null(SB.records)==TRUE & is.null(NC.records)==FALSE){
+                return(NC.records)
+              } else cat("")
+            })
+  }
+
+#open mnes species list
+mnes.species <- read.csv("EPBC listed species WA.csv", skip=1)
+
+# open the list of threatened and interesting species for potential analysis
+protected.species <- read.csv("WA listed protected species.csv")
+  colnames(protected.species)[5] <- "Scientific.Name"
+  protected.species$mnes[protected.species$Listing_level == "Matter of National Environmental Significance"] <- "TRUE"
+ 
+# the taxanomic blocks that the data were downloaded in
+taxa <- c("mammals", "amphibians", "plants", "reptiles","birds","invertebrates")
+          
+```
+
+```{r analysis_ALA}
+setwd("C:/Users/awhitehead/Documents/GIS_data/Perth-Peel/species data")
+
+# loop through each taxonomic group and extract records based on the threatened species list
+for (k in seq(taxa)){
+  cat("\n", "Extracting records for",taxa[k],"\n")  
+  species.list <- protected.species$Scientific.Name[protected.species$Taxa==taxa[k]] 
+  P.input <- read.csv(paste0("ALA downloads/Perth ",taxa[k],".csv"))
+  NJF.input <- read.csv(paste0("ALA downloads/NJF ",taxa[k],".csv"))
+  DP.input <- read.csv(paste0("ALA downloads/DP ",taxa[k],".csv"))
+
+  for(i in seq(species.list)){
+      NC.records <- extract("ALA downloads", "NSW North Coast",NC.input,species.list[i])
+      SB.records <- extract("ALA downloads", "Sydney Basin",SB.input,species.list[i])
+      BB.records <- extract("ALA downloads", "Brigalow Belt South",BB.input,species.list[i])
+      
+      all.records <- combine.records(NC.records, SB.records)
+        all.records <- combine.records(all.records, BB.records)
+        
+     if(is.null(all.records)==FALSE) {
+        protected.species$Downloaded.ALA[protected.species$Scientific.Name==species.list[i]] <- "yes"
+        protected.species$ALA.records[protected.species$Scientific.Name==species.list[i]] <- nrow(all.records)
+        write.csv(all.records, glue("ALA data/",species.list[i],".csv"),row.names=FALSE)
+        cat("Exported",nrow(all.records), "records for", as.character(species.list[i]),"\n","\n")
+        }
+      suppressWarnings(rm(NC.records,SB.records,BB.records,all.records))
+      gc()
+    }
+}
+
+# update threatened species download information
+write.csv(protected.species, "WA listed protected species.csv", row.names=FALSE)
+
+```
+
+
+```{r analysis_NatureMap}
+setwd("C:/Users/awhitehead/Documents/GIS_data/Perth-Peel/species data")
+
+# loop through each taxonomic group and extract records based on the threatened species list
+for (k in seq(taxa)){
+  cat("\n", "Extracting records for",taxa[k],"from NatureMap", "\n")  
+  species.list <- protected.species$Scientific.Name[protected.species$Taxa==taxa[k]] 
+   P.input <- read.csv(paste0("NatureMap downloads/Perth ",taxa[k],".csv"))
+    colnames(P.input)[1] <- "Scientific.Name"
+  NJF.input <- read.csv(paste0("NatureMap downloads/NJF ",taxa[k],".csv"))
+    colnames(NJF.input)[1] <- "Scientific.Name"
+  DP.input <- read.csv(paste0("NatureMap downloads/DP ",taxa[k],".csv"))
+    colnames(DP.input)[1] <- "Scientific.Name"
+  
+  for(i in seq(species.list)){
+      P.records <- extract("NatureMap downloads", "Perth",P.input,species.list[i])
+      NJF.records <- extract("NatureMap downloads", "NJF",NJF.input,species.list[i])
+      DP.records <- extract("NatureMap downloads", "DP",DP.input,species.list[i])
+      
+      all.records <- combine.records(P.records, NJF.records)
+        all.records <- combine.records(all.records, DP.records)
+        
+     if(is.null(all.records)==FALSE) {
+        protected.species$Downloaded.NM[protected.species$Scientific.Name==species.list[i]] <- "yes"
+        protected.species$NM.records[protected.species$Scientific.Name==species.list[i]] <- nrow(all.records)
+        write.csv(all.records, glue("NatureMap data/",species.list[i],".csv"),row.names=FALSE)
+        cat("Exported",nrow(all.records), "records for", as.character(species.list[i]),"\n","\n")
+        }
+      suppressWarnings(rm(P.records,NJF.records,DP.records,all.records))
+      gc()
+    }
+}
+
+# update threatened species download information
+write.csv(protected.species, "WA listed protected species.csv", row.names=FALSE)
+
+```
+
+*This file was last updated on 12 April 2013 and last run on `r format(Sys.time(), "%d %B %Y")`.*
