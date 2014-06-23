@@ -1,0 +1,39 @@
+Title
+========================================================
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring web pages (click the **MD** toolbar button for help on Markdown).
+
+When you click the **Knit HTML** button a web page will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r setup}
+packages(raster)
+
+convert.to.tif <- function (asc.file) {
+  r <- raster(paste0(maxent.dir,asc.file))
+  species <- gsub("_avg","",names(r))
+  r <- mask(resample(r,PP.mask),PP.mask)
+  r <- round(r*1000,0)
+  
+  writeRaster(r,paste0(zonation.dir,species,".tif"),overwrite=T)
+  cat("converted",species, "to tif","\n")
+}
+
+```
+
+
+```{r setup}
+computer <- "//654cw-20990/Amy/"
+#computer <- "~/"
+
+PP.mask <- raster(paste0(computer,"GIS_data/Perth-Peel/environmental data/100m/clipping.mask.tif"))
+
+maxent.dir <- paste0(computer,"GIS_data/Perth-Peel/Maxent_files/environmental_data/100m/ibra/output/plants.Model3/")
+zonation.dir <- paste0(computer,"GIS_data/Perth-Peel/zonation/100m/")
+
+(asc.files <- dir(maxent.dir,pattern="_avg.asc$", recursive=T, full.names=F))
+
+lapply(asc.files,convert.to.tif)
+
+```
+
+
