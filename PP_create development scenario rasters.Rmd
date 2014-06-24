@@ -1,0 +1,391 @@
+Create development rasters for scenario planning
+========================================================
+
+```{r setup_functions}
+#load packages and set working directory
+rm(list=ls())
+start.time <- proc.time()
+
+
+  envi.directory <- "~/GIS_data/Perth-Peel/"
+  output.directory <- "~/GIS_data/Perth-Peel/zonation/100m/scenarios/"
+
+setwd(output.directory)
+
+packages(raster)
+packages(rgdal)
+packages(maptools)
+packages(rgeos)
+
+perth <- raster("~/GIS_data/Perth-Peel/environmental data/100m/region.mask.asc")
+  perth[!is.na(perth)] <- 2
+clipping.mask <- raster("~/GIS_data/Perth-Peel/environmental data/100m/clipping.mask.tif")
+  clipping.mask[!is.na(clipping.mask)] <- 2
+
+
+create.raster <- function (s, mask.raster, raster.label, value, transform=TRUE) {
+    
+   if(transform==TRUE) {
+     proj4string(s) <- "+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs"
+    s <- spTransform(s, CRS("+proj=utm +zone=50 +south +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs"))
+     }
+    
+  r <- rasterize(s,mask.raster)
+    r[!is.na(r)] <- value
+    r <- mask(merge(r,mask.raster),mask.raster, filename=paste0(output.directory,raster.label), format="GTiff", overwrite=T)
+    names(r) <- rep(raster.label,length(names(r)))
+    
+    plot(r, main=raster.label, zlim=c(1,5))
+
+    return(r)
+  }
+
+```
+
+
+Polygon union of the features in the clipping mask to calculate area of development that intersects with the prioritisation footprint.  Needs to include the following layers (see PP_create clipping mask for zonation runs)
+* remnant vegetation
+* standing pines
+* CBC feeding habitat
+* Western swamp tortoise habitat
+* All TECs
+* Ramsar sites
+* EPP lakes  & CCW
+* EPA biodiversity layers 1 & 2
+* heritage areas
+
+Need to confirm that all of the layers have been included
+
+```{r polygon area of clipping mask}
+clipping.mask.shp <- readShapePoly("~/GIS_data/Perth-Peel/zonation/100m/scenarios/clipping_mask.shp",proj4string=CRS("+proj=utm +zone=50 +south +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs"))
+  # correct self-intersecting rings
+  clipping.mask.shp <- gBuffer(clipping.mask.shp, width = 0) 
+
+clipping.area <- gArea(clipping.mask.shp)/10000
+
+cat("Total area of Strategic Assessment prioritisation footprint =", clipping.area,"ha")
+
+```
+
+
+```{r DOP EIA1}
+
+dop.eia1 <- readShapePoly(paste0(envi.directory,"DOP/DoP_EIA1_20130809.shp"),proj4string=CRS("+proj=utm +zone=50 +south +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs"))
+  dop.eia1 <- gBuffer(dop.eia1,width = 0)
+  dop.eia1.area <- gArea(dop.eia1[dop.eia1$Land_Type!="Developed Urban" & dop.eia1$Land_Type!="Existing Industrial",])/10000
+
+cat("Total area of EIA1 =",dop.eia1.area,"ha","\n")
+
+dop.eia1.clip.area <- gArea(gIntersection(clipping.mask.shp,dop.eia1))/10000
+
+dop.eia1.proposed <- create.raster(dop.eia1[dop.eia1$Land_Type!="Developed Urban" & dop.eia1$Land_Type!="Existing Industrial",],perth, raster.label="DOP_EIA1_proposed", value=1, transform=FALSE)
+
+```
+
+```{r BRM EIA1}
+
+dmp.eia1 <- readShapePoly(paste0(envi.directory,"DMP/DMP_BRM_EIA_V1.shp"))
+
+dmp.eia1 <- create.raster(dmp.eia1, perth, raster.label="DMP_EIA1", value=1, transform=FALSE)
+
+```
+
+```{r pines}
+pines.shp <-readShapePoly(paste0(envi.directory,"DEC/DEC_FPC_Pines_gnangara_pinjar_and_yanchep-standing_2011-12.shp"))
+
+pines <- create.raster(pines.shp, perth, raster.label="Pines_gnangara_pinjar_and_yanchep", value=1, transform=FALSE)
+
+pines.area <- gArea(pines.shp,byid=FALSE)/10000
+
+# pines already clearfelled
+pines.felled <-readShapePoly(paste0(envi.directory,"DEC/DEC_FPC_Pines_gnangara_pinjar_and_yanchep-clear_felled_2011-12.shp"))
+
+pines.felled.area <- gArea(pines.felled,byid=FALSE)/10000
+
+cat("Total area of standing pines =",pines.area,"ha based on polygon data in 2011-12","\n","Total area of cleared pines =",pines.felled.area,"ha based on polygon data in 2011-12","\n" )
+
+```
+
+```{r DOP EIA2}
+dop.eia2 <- readShapePoly(paste0(envi.directory,"DOP/DoP_EIA2_20130809.shp"))
+
+dop.eia2.area <- gArea(dop.eia2[dop.eia2$Land_Type!="Developed Urban" & dop.eia2$Land_Type!="Existing Industrial",])/10000
+cat("Total area of EIA2 =",dop.eia2.area,"ha", "\n" )
+
+dop.eia2.proposed <- create.raster(dop.eia2[dop.eia2$Land_Type!="Developed Urban" & dop.eia2$Land_Type!="Existing Industrial",], perth, raster.label="DOP_EIA2_proposed", value=1, transform=FALSE)
+
+```
+
+```{r BRM EIA2}
+
+dmp.eia2 <- readShapePoly(paste0(envi.directory,"DMP/DMP_BRM_EIA_V2.shp"))
+
+dmp.eia2 <- create.raster(dmp.eia2, perth, raster.label="DMP_EIA2", value=1, transform=FALSE)
+
+```
+
+```{r BRM EIL V4}
+dmp.eil4 <- readShapePoly(paste0(envi.directory,"DMP/DMP_BRM_EIL_V4.shp"))
+
+dmp.eil4.raster <- create.raster(dmp.eil4, perth, raster.label="DMP_EILV4",value=1,transform=FALSE) 
+
+```
+
+EIA3 has two options but needs to be combined with the Industrial Lands Strategy to be a fair comparison with EIA1 & EIA2 (which include industrial and urban)
+
+```{r DOP EIA3 + industrial}
+
+# Option 1 without Keralup
+dop.EIA3_Option1_30102013 <- readShapePoly(paste0(envi.directory,"DOP/DOP_EIA3_Option1_30102013.shp"))
+
+dop.EIA3_Option1_30102013.raster <- create.raster(dop.EIA3_Option1_30102013, perth, raster.label="DOP_EIA3_Option1",value=1,transform=FALSE)
+
+dop.EIA3_Option1_30102013.area <- gArea(dop.EIA3_Option1_30102013,byid=FALSE)/10000
+
+# Option 2 with Keralup
+dop.EIA3_Option2_30102013 <- readShapePoly(paste0(envi.directory,"DOP/DOP_EIA3_Option2_30102013.shp"))
+
+dop.EIA3_Option2_30102013.raster <- create.raster(dop.EIA3_Option2_30102013, perth, raster.label="DOP_EIA3_Option2",value=1,transform=FALSE)
+
+dop.EIA3_Option2_30102013.area <- gArea(dop.EIA3_Option2_30102013,byid=FALSE)/10000
+
+# Industrial Land Strategy
+dop.industrial <- readShapePoly(paste0(envi.directory,"DOP/Industrial_Data/IndustrialLandStrategy_08Nov2013.shp"))
+
+dop.industrial.raster <- create.raster(dop.industrial, perth, raster.label="DOP_IndustrialLandStrategy",value=1,transform=FALSE)
+
+dop.industrial.area <- gArea(dop.industrial,byid=FALSE)/10000
+
+# merge industrial land strategy and EIA3 Options 1 & 2
+eia3_ils_Option1 <- calc(stack(dop.EIA3_Option1_30102013.raster,dop.industrial.raster),fun=min, filename=paste0(output.directory,"eia3_ils_Option1"), format="GTiff", overwrite=T)
+  plot(eia3_ils_Option1)
+
+eia3_ils_Option2 <- calc(stack(dop.EIA3_Option2_30102013.raster,dop.industrial.raster),fun=min, filename=paste0(output.directory,"eia3_ils_Option2"), format="GTiff", overwrite=T)
+  plot(eia3_ils_Option2)
+
+cat("Total area for EIA3 Option1 =",dop.industrial.area+dop.EIA3_Option1_30102013.area, "ha","\n","Total area for EIA3 Option2 =",dop.industrial.area+dop.EIA3_Option2_30102013.area, "ha","\n")
+
+```
+
+```{r infrastructure}
+
+dot.proposed.railstops <- readShapePoints(paste0(envi.directory,"DOT/DoT_PassengerRailStops_Proposed_20121017.shp"))
+  dot.proposed.railstops <- gBuffer(dot.proposed.railstops,width=10, byid=TRUE)
+  dot.proposed.railstops.buffer <- gBuffer(dot.proposed.railstops,width=100, byid=TRUE)
+
+  dot.proposed.railstops.area <- gArea(dot.proposed.railstops.buffer,byid=FALSE)/10000
+
+future.railstops <- create.raster(dot.proposed.railstops, perth, raster.label="DoT_PassengerRailStops_Proposed",value=1,transform=FALSE)
+
+Future_Roads_Metropolitan_Peel_DoP <- readShapeLines(paste0(envi.directory,"DOP/Future_Roads_Metropolitan_Peel_DoP.shp"))
+
+  Future_Roads_Metropolitan_Peel_DoP.buffer <- gBuffer(Future_Roads_Metropolitan_Peel_DoP,width=100,byid=TRUE)
+  Future_Roads_Metropolitan_Peel_DoP.area <- gArea(Future_Roads_Metropolitan_Peel_DoP.buffer,byid=FALSE)/10000
+
+  
+future.roads <- create.raster(Future_Roads_Metropolitan_Peel_DoP, perth, raster.label="Future_Roads_Metropolitan_Peel_DoP",value=1,transform=FALSE)
+
+WP_New_Sub_stations_20131003 <- readShapePoints(paste0(envi.directory,"WP/WP_New_Sub_stations_20131003.shp"))
+  WP_New_Sub_stations_20131003 <- gBuffer(WP_New_Sub_stations_20131003,width=10, byid=TRUE)
+  WP_New_Sub_stations_20131003.buffer <- gBuffer(WP_New_Sub_stations_20131003,width=100, byid=TRUE)
+  WP_New_Sub_stations_20131003.area <- gArea(WP_New_Sub_stations_20131003.buffer,byid=FALSE)/10000
+  future.substations <- create.raster(WP_New_Sub_stations_20131003, perth, raster.label="WP_New_Sub_stations",value=1, transform=FALSE)
+
+WP_New_Power_Lines_20131003 <- readShapeLines(paste0(envi.directory, "WP/WP_New_Power_Lines_20131003.shp"))
+  WP_New_Power_Lines_20131003.buffer <- gBuffer(WP_New_Power_Lines_20131003,width=100, byid=TRUE)
+  WP_New_Power_Lines_20131003.area <- gArea(WP_New_Power_Lines_20131003.buffer,byid=FALSE)/10000
+  future.powerlines <- create.raster(WP_New_Power_Lines_20131003, perth, raster.label="WP_New_Power_Lines_20131003", value=1, transform=FALSE)
+
+WC_future_assests_20131010 <- readShapeLines(paste0(envi.directory,"WC/WC_future_assests_20131010.shp"))
+  WC_future_assests_20131010.buffer <- gBuffer(WC_future_assests_20131010,width=100, byid=TRUE)
+  WC_future_assests_20131010.area <- gArea(WC_future_assests_20131010.buffer,byid=FALSE)/10000
+future.water <- create.raster(WC_future_assests_20131010, perth, raster.label = "WC_future_assests_20131010", value= 2, transform=FALSE)
+
+DoT_RecreationalPaths_Future_20121127 <- readShapeLines(paste0(envi.directory,"DOT/DoT_RecreationalPaths_Future_20121127.shp"))
+  DoT_RecreationalPaths_Future_20121127.buffer <- gBuffer(DoT_RecreationalPaths_Future_20121127,width=100, byid=TRUE)
+  DoT_RecreationalPaths_Future_20121127.area <- gArea(DoT_RecreationalPaths_Future_20121127.buffer,byid=FALSE)/10000
+future.paths <- create.raster(DoT_RecreationalPaths_Future_20121127, perth, raster.label="DoT_RecreationalPaths_Future_20121127", value=1, transform=FALSE)
+
+DoT_PrincipalSharedPaths_Future_20121127 <- readShapeLines(paste0(envi.directory,"DOT/DoT_PrincipalSharedPaths_Future_20121127.shp"))
+  DoT_PrincipalSharedPaths_Future_20121127.buffer <- gBuffer(DoT_PrincipalSharedPaths_Future_20121127,width=100, byid=TRUE)
+  DoT_PrincipalSharedPaths_Future_20121127.area <- gArea(DoT_PrincipalSharedPaths_Future_20121127.buffer,byid=FALSE)/10000
+shared.paths <- create.raster(DoT_PrincipalSharedPaths_Future_20121127,perth,raster.label="DoT_PrincipalSharedPaths_Future_20121127",value=1,transform=FALSE)
+
+DoT_PassengerRailExtension_Proposed_20121017 <- readShapeLines(paste0(envi.directory,"DOT/DoT_PassengerRailExtension_Proposed_20121017.shp"))
+  DoT_PassengerRailExtension_Proposed_20121017.buffer <- gBuffer(DoT_PassengerRailExtension_Proposed_20121017,width=100, byid=TRUE)
+  DoT_PassengerRailExtension_Proposed_20121017.area <- gArea(DoT_PassengerRailExtension_Proposed_20121017.buffer,byid=FALSE)/10000
+future.rail <- create.raster(DoT_PassengerRailExtension_Proposed_20121017, perth, raster.label="DoT_PassengerRailExtension_Proposed_20121017", value=1, transform=FALSE)
+
+SMPSP_road_network_conceptual_20131108 <- readShapeLines(paste0(envi.directory,"SMPSP/SMPSP_road_network_conceptual_20131108.shp"),delete_null_obj=TRUE)
+  SMPSP_road_network_conceptual_20131108.buffer <- gBuffer(SMPSP_road_network_conceptual_20131108,width=100, byid=TRUE)
+  SMPSP_road_network_conceptual_20131108.area <- gArea(SMPSP_road_network_conceptual_20131108.buffer,byid=FALSE)/10000
+future.smpsp.roads <- create.raster(SMPSP_road_network_conceptual_20131108, perth, raster.label="SMPSP_road_network_conceptual_20131108", value=1, transform=FALSE)
+
+future.infrastructure <- calc(stack(future.railstops, future.roads, future.substations, future.powerlines, future.water, future.paths, shared.paths,future.rail,future.smpsp.roads),fun=min, filename=paste0(output.directory,"infrastructure"), format="GTiff", overwrite=T)
+  plot(future.infrastructure, main="future.infrastructure",zlim=c(1,3))
+
+cat("Area of future infrastructure =",dot.proposed.railstops.area+Future_Roads_Metropolitan_Peel_DoP.area+WP_New_Sub_stations_20131003.area+WP_New_Power_Lines_20131003.area+WC_future_assests_20131010.area+DoT_RecreationalPaths_Future_20121127.area+DoT_PrincipalSharedPaths_Future_20121127.area+DoT_PassengerRailExtension_Proposed_20121017.area+SMPSP_road_network_conceptual_20131108.area,"ha","\n", "Note that this doesn't appear to be correct","\n")
+
+```
+
+```{r rural residential}
+rural_residential_zoned <- readShapePoly(paste0(envi.directory,"DOP/rural_residential_zoned.shp"))
+  rural_residential_zoned.area <- gArea(rural_residential_zoned, byid=FALSE)/10000
+
+rural.residential <- create.raster(rural_residential_zoned,perth, raster.label="rural_residential_zoned",value=1, transform=FALSE)
+
+cat("Area of rural residential =",rural_residential_zoned.area,"ha","\n")
+
+```
+
+
+```{r create_conservation_rasters}
+    
+# DPAW Regional Parks under Section 16 of CALM Act
+  regional.parks16 <- readShapePoly(paste0(envi.directory, "DEC/DEC_RegionalParks_withS16_20110502.shp"))
+  regional.parks5 <- create.raster(regional.parks16,perth, raster.label="DEC_RegionalParks_withS16_20110502", value=5)
+
+# DPAW Managed Lands
+managed.lands <- readShapePoly(paste0(envi.directory, "DEC/DEC_ManagedLandsAndWaters_20120601.shp"))
+    managed.lands$IUCN[managed.lands$CATEGORY=="State Forest"] <- 6
+    
+    managed.lands3 <- create.raster(managed.lands[is.na(managed.lands$IUCN),],perth, raster.label="DEC_ManagedLandsAndWaters_20120601_No IUCN status", value=3)
+    
+    managed.lands <- managed.lands[!is.na(managed.lands$IUCN),]
+    
+    # State Forests (IUCN 6)
+    managed.lands4 <- create.raster(managed.lands[managed.lands$IUCN=="6",],perth, raster.label="DEC_ManagedLandsAndWaters_20120601_IUCN 6", value=4)
+    
+  # IUCN 1-4
+    managed.lands5 <- create.raster(managed.lands[(managed.lands$IUCN=="1a" | managed.lands$IUCN=="2" | managed.lands$IUCN=="3" | managed.lands$IUCN=="4"),],perth, raster.label="DEC_ManagedLandsAndWaters_20120601_IUCN 1-4", value=5)
+
+# Heritage
+world.heritage <- readShapePoly(paste0(envi.directory, "SEWPaC/PP_MNES_extract/PP_WHA_clip.shp"))
+  world.heritage5 <- create.raster(world.heritage,perth, raster.label="PP_WHA_clip", value=5)
+
+national.heritage <- readShapePoly(paste0(envi.directory, "SEWPaC/PP_MNES_extract/PP_NHL_clip.shp"))
+  national.heritage5 <- create.raster(national.heritage,perth, raster.label="PP_NHL_clip", value=5)
+
+commonwealth.heritage <- readShapePoly(paste0(envi.directory, "SEWPaC/PP_MNES_extract/PP_CHL_clip.shp"))
+  commonwealth.heritage5 <- create.raster(commonwealth.heritage,perth, raster.label="PP_CHL_clip", value=5)
+
+# Bush Forever
+bushforever.SP28 <- readShapePoly(paste0(envi.directory,"DOP/DoP_StatePlanningPolicy28_BushForeverReserves_20120823.shp"))
+  bushforever3 <- create.raster(bushforever.SP28,perth, raster.label="DoP_StatePlanningPolicy28_BushForeverReserves_20120823", value=3, transform=FALSE)
+
+#MRS
+parks.rec <- readShapePoly(paste0(envi.directory,"MRS_PRS/mrspoly_20120928.shp"))
+  parks.rec3 <- create.raster(parks.rec[(parks.rec$DESCRIPTIO=="PARKS & RECREATION" | parks.rec$DESCRIPTIO=="PARKS & RECREATION RESTRICTED"), ],perth, raster.label="mrspoly_20120928", value=3, transform=FALSE)
+
+#PRS
+open.space <- readShapePoly(paste0(envi.directory,"MRS_PRS/prspoly_20120928.shp"))
+  open.space3 <- create.raster(open.space[open.space$DESCRIPTIO=="REGIONAL OPEN SPACE" , ],perth, raster.label="prspoly_20120928", value=3, transform=FALSE)
+
+protected.areas <- calc(stack(regional.parks5,managed.lands3,managed.lands4,managed.lands5,world.heritage5,national.heritage5,commonwealth.heritage5,bushforever3,parks.rec3,open.space3),fun=max, filename=paste0(envi.directory,"protected.areas"), format="GTiff",overwrite=T)
+  plot(protected.areas, main="Protected areas", zlim=c(1,5))
+
+```
+
+```{r scenarios}
+
+scenario2_eia1 <-  writeRaster(dop.eia1.proposed,filename=paste0(output.directory,"scenario2_eia1"),format="GTiff",overwrite=T)
+  plot(scenario2_eia1, main="scenario2_eia1", zlim=c(1,5))
+
+scenario3_eia2 <-  writeRaster(dop.eia2.proposed,filename=paste0(output.directory,"scenario3_eia2"),format="GTiff",overwrite=T)
+  plot(scenario3_eia2, main="scenario3_eia2", zlim=c(1,5))
+
+scenario4_eia3_Option1 <-  writeRaster(eia3_ils_Option1,filename=paste0(output.directory,"scenario4_eia3_Option1"),format="GTiff",overwrite=T)
+  plot(scenario4_eia3_Option1, main="scenario4_eia3_Option1", zlim=c(1,5))
+
+scenario5_eia3_Option2 <-  writeRaster(eia3_ils_Option2,filename=paste0(output.directory,"scenario5_eia3_Option2"),format="GTiff",overwrite=T)
+ plot(scenario5_eia3_Option2, main="scenario5_eia3_Option2", zlim=c(1,5))
+
+scenario6_brm_eil4 <- writeRaster(dmp.eil4.raster,filename=paste0(output.directory,"scenario6_brm_eil4"),format="GTiff",overwrite=T)
+  plot(scenario6_brm_eil4, main="scenario6_brm_eil4", zlim=c(1,5))
+
+scenario7_rural_res <- writeRaster(rural.residential,filename=paste0(output.directory,"scenario7_rural_res"),format="GTiff",overwrite=T)
+  plot(scenario7_rural_res, main="scenario7_rural_res", zlim=c(1,5))
+
+scenario8_infrastructure <- writeRaster(future.infrastructure,filename=paste0(output.directory,"scenario8_infrastructure"),format="GTiff",overwrite=T)
+  plot(scenario8_infrastructure, main="scenario8_infrastructure", zlim=c(1,5))
+
+scenario9_pines <- writeRaster(pines,filename=paste0(output.directory,"scenario9_pines"),format="GTiff",overwrite=T)
+  plot(scenario9_pines, main="scenario9_pines", zlim=c(1,5))
+
+scenario10_protected.areas <- writeRaster(protected.areas,filename=paste0(output.directory,"scenario10_ProtectedAreas"),format="GTiff",overwrite=T)
+  plot(scenario10_protected.areas, main="scenario10_protected.areas", zlim=c(1,5))
+
+scenario11_All.Option1 <- calc(stack(eia3_ils_Option1,dmp.eil4.raster,rural.residential,future.infrastructure,pines),min,filename=paste0(output.directory,"scenario11_AllOption1"),format="GTiff",overwrite=T)
+  plot(scenario11_All.Option1, main="scenario11_All.Option1", zlim=c(1,5))
+
+scenario12_All.Option2 <- calc(stack(eia3_ils_Option2,dmp.eil4.raster,rural.residential,future.infrastructure,pines),min,filename=paste0(output.directory,"scenario12_AllOption2"),format="GTiff",overwrite=T)
+  plot(scenario12_All.Option2, main="scenario12_All.Option2", zlim=c(1,5))
+
+
+```
+
+
+```{r clip scenarios by clipping mask}
+
+(scenarios <- dir(output.directory,pattern="scenario.*\\.tif$"))
+
+for (s in seq(scenarios)){
+  r <- raster(scenarios[s])
+  r <- mask(r,clipping.mask,filename=paste0("~/GIS_data/Perth-Peel/zonation/100m/",names(r)), format="GTiff", overwrite=T)
+  plot(r, main=names(r),zlim=c(1,5))
+}
+
+```
+
+```{r quantify land area losses & protected areas}
+eia1 <-  raster("~/GIS_data/Perth-Peel/environmental data/100m/scenarios/scenario_eia1_unclipped.tif") 
+eia2 <-  raster("~/GIS_data/Perth-Peel/environmental data/100m/scenarios/scenario_eia1_unclipped.tif")
+protected.areas <- raster("~/GIS_data/Perth-Peel/environmental data/100m/scenarios/scenario_protected.areas_unclipped.tif")
+
+clip.area<-clipping.mask
+  clip.area[!is.na(clip.area)] <- 1
+
+# How much of the areas are going to be developed?
+eia1.area <- eia1
+  eia1.area[eia1.area!=3] <- 0
+  eia1.area[eia1.area==3] <- 1
+
+(eia1.area.lost <- 1-cellStats(eia1.area,stat='sum')/cellStats(clip.area,stat='sum'))
+
+eia2.area <- eia2
+  eia2.area[eia2.area!=3] <- 0
+  eia2.area[eia2.area==3] <- 1
+
+eia2.area.lost <- 1-cellStats(eia2.area,stat='sum')/cellStats(clip.area,stat='sum')
+
+# How much land is protected?
+protected.areas.area <- protected.areas
+  protected.areas.area[protected.areas.area!=4] <- 0
+  protected.areas.area[protected.areas.area==4] <- 1
+
+(protected.areas.protected <- cellStats(protected.areas.area,stat='sum')/cellStats(clip.area,stat='sum'))
+
+# How much of the protected areas are proposed for development?
+eia1.develop <- eia1
+  eia1.develop[eia1.develop!=2] <- 0
+
+protected <- protected.areas
+  protected[protected==3] <- 0
+
+eia1.develop.protected <- sum(eia1.develop,protected)
+  eia1.develop.protected[eia1.develop.protected!=6] <- 0
+  eia1.develop.protected[eia1.develop.protected==6] <- 1
+(protected.lost.eia1 <- cellStats(eia1.develop.protected,sum)/cellStats(protected.areas.area,stat='sum'))
+
+eia2.develop <- eia2
+  eia2.develop[eia2.develop!=2] <- 0
+
+eia2.develop.protected <- sum(eia2.develop,protected)
+  eia2.develop.protected[eia2.develop.protected!=6] <- 0
+  eia2.develop.protected[eia2.develop.protected==6] <- 1
+(protected.lost.eia2 <- cellStats(eia2.develop.protected,sum)/cellStats(protected.areas.area,stat='sum'))
+
+```
+
+
+*This file was last updated on 31 October 2013 and last run on `r format(Sys.time(), "%d %B %Y")`.*
