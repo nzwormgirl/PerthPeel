@@ -1,0 +1,149 @@
+Create extant vegetation layer to clip all layers for zonation
+========================================================
+
+Create a clippling mask that is used to cut the MaxEnt output for use in Zonation.  Needs to include all areas that we are interested in prioritising too and currently includes the following layers:
+* remnant vegetation (DEC)
+* TECs
+* EPA bio3
+* EPA bio2
+* pines
+* plantations(?)
+* Ramsar
+* world, commonwealth & national heritage
+
+
+```{r setup_functions}
+#load packages and set working directory
+rm(list=ls())
+start.time <- proc.time()
+
+envi.directory <- "~/GIS_data/Perth-Peel/"
+output.directory <- "~/GIS_data/Perth-Peel/environmental data/100m/scenarios/"
+
+setwd(output.directory)
+
+packages(raster)
+packages(rgdal)
+packages(maptools)
+
+source("C:/Users/awhitehead/Dropbox/Random R code/shp2raster.R")
+
+# set current projection
+  GDA94 <- CRS("+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs")
+
+  # transform to new projection
+  GDA94.50 <- CRS("+proj=utm +zone=50 +south +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs")
+
+perth <- raster("~/GIS_data/Perth-Peel/environmental data/100m/region.mask.asc")
+  perth[!is.na(perth)] <- 0
+  writeRaster(perth,"~/GIS_data/Perth-Peel/mask files/perth.mask.tif", format="GTiff", overwrite=T)
+
+PP.mask <- readShapePoly("C:/Users/awhitehead/Documents/GIS_data/Perth-Peel/DOP/DoP_StrategicAssessmentStudyBoundary_Extended_20121004_GDA94.shp")
+
+create.raster <- function (s, mask.raster, label, value, transform=TRUE) {
+    
+   if(transform==TRUE) {
+     proj4string(s) <- "+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs"
+    s <- spTransform(s, CRS("+proj=utm +zone=50 +south +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs"))
+     }
+    
+  r <- rasterize(s,mask.raster)
+    r[!is.na(r)] <- value
+    r <- mask(merge(r,mask.raster),mask.raster)
+    names(r) <- label
+    
+    plot(r, main=label)
+    
+   writeRaster(r,paste0(output.directory,label), format="GTiff", overwrite=T)
+    return(r)
+  }
+
+```
+
+1.  Create an empty raster the same resolution, extent and projection as the region
+2.  Load in desired layers and set background cells to NA.
+3.  Check to make sure that the extents match and resample if they don't.
+4.  Stack layers together and merge, setting all non-NA cells to 1.
+5.  Export clipping mask for future analyses.
+
+```{r read in spatial data that is to be included in mask}
+#vegetation
+nvis_mvs_exotics <- raster("~/GIS_data/Perth-Peel/environmental data/100m/ibra/vegetation/nvis_mvs_exotics.tif")
+  nvis_mvs_exotics[nvis_mvs_exotics == 98 | nvis_mvs_exotics == 99] <- NA
+epa.bio3 <- raster("EPA_Biodiversity3_20130322.tif")
+  epa.bio3[epa.bio3 == 0] <- NA
+rem.veg <- raster("DEC_RemnantVegetation_SwanRegion_20120401.tif")
+  rem.veg[rem.veg == 0] <- NA
+# pines <- raster("~/GIS_data/Perth-Peel/environmental data/100m/ibra/vegetation/pines.tif")
+  #pines[!is.na(pines)] <-1
+
+# Heritage
+world.heritage <- raster("PP_WHA_clip.tif")
+  world.heritage[world.heritage == 0] <- NA
+national.heritage <- raster("PP_NHL_clip.tif")
+  national.heritage[national.heritage == 0] <- NA
+commonwealth.heritage <- raster("PP_CHL_clip.tif")
+  commonwealth.heritage[commonwealth.heritage == 0] <- NA
+  
+# Wetlands
+ramsar <- raster("PP_Ramsar_clip.tif")
+  ramsar[ramsar == 0] <- NA
+epa.bio2 <- raster("EPA_Biodiversity2_20130322.tif")
+  epa.bio2[epa.bio2 == 0] <- NA
+
+# migratory bird areas
+mig.birds <- readShapePoly("~/GIS_data/Perth-Peel/DEC/DEC_SPB_ThreatenedandMigratoryBirds_20130308.shp")
+  mig.birds.raster <- create.raster(mig.birds, perth,value=1, label="DEC_SPB_ThreatenedandMigratoryBirds_20130308", transform=T )
+  mig.birds.raster[mig.birds.raster == 0] <- NA
+
+# TECs
+tec <- raster("~/GIS_data/Perth-Peel/environmental data/100m/tecs/tecs_100m")
+cec <- raster("~/GIS_data/Perth-Peel/SEWPaC/PP_EC_data/PP_EC")
+saltmarsh <- raster("~/GIS_data/Perth-Peel/zonation/100m/EC_saltmarsh.tif")
+
+
+```
+
+```{r read in spatial data that is to be excluded from mask}
+existing.development <- readShapePoly("~/GIS_data/Perth-Peel/DOP/DoP_Development_Footprint_20140310.shp")
+  exist.dev.raster <- shp2raster(existing.development[grepl("Developed",existing.development$DEVELOPED),], perth,value=0,bkg=1, label="DoP_Development_Footprint_20140310_developed", transform=F )
+
+existing.infrastructure <- readShapePoly("~/GIS_data/Perth-Peel/DOP/DoP_Infrastructure_Existing_Footprint_20140321.shp",proj4string=CRS("+proj=tmerc +lat_0=0 +lon_0=117 +k=0.9996 +x_0=500000 +y_0=4000000 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs"))
+  exist.infra.raster <- shp2raster(existing.infrastructure, perth, value=0, bkg=1, label="DoP_Infrastructure_Existing_Footprint_20140321", transform=T, proj.to=GDA94.50)
+
+```
+
+
+```{r merge layers}
+rasters <- list(nvis_mvs_exotics,epa.bio3,world.heritage,national.heritage,commonwealth.heritage,ramsar,epa.bio2,rem.veg,tec,cec,saltmarsh,mig.birds.raster, exist.infra.raster, exist.dev.raster)
+
+# check to make sure that the extents match
+for (i in 1:length(rasters)){
+  r <- rasters[[i]]
+ cat("Checking",names(r),"\n")
+ if(extent(r)!= extent(perth)){
+   cat("Resampling",names(r),"\n")
+   r <- resample(r,perth, method="ngb",filename=names(r),overwrite=T)
+  assign(names(r),r)
+   }
+}
+
+# combine all inclusion layers
+all.include <- mask(calc(stack(ramsar,tec,cec,saltmarsh,mig.birds.raster,epa.bio3,world.heritage,national.heritage,commonwealth.heritage,epa.bio2,rem.veg,nvis_mvs_exotics),max),perth)
+  all.include[!is.na(all.include)] <- 1
+
+# combine all exclusion layers
+all.exclude <- min(exist.dev.raster,exist.infra.raster)
+
+# combine inclusion & exclusion layers
+clipping.mask <- min(all.include,all.exclude)
+  clipping.mask[clipping.mask==0] <- NA
+
+plot(clipping.mask)
+
+writeRaster(clipping.mask,"~/GIS_data/Perth-Peel/mask files/perth.clipping.mask.tif", format="GTiff", overwrite=T)
+
+```
+
+
+*This file was last updated on 25 June 2014 and last run on `r format(Sys.time(), "%d %B %Y")`.*
