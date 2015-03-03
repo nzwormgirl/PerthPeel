@@ -1,0 +1,691 @@
+---
+title: "Calculate CL development impacts"
+author: "Amy Whitehead"
+date: "Monday, July 28, 2014"
+output: html_document
+---
+
+
+```{r set up}
+rm(list=ls())
+packages(raster)
+packages(maptools)
+packages(colorRamps)
+packages(fields)
+packages(RColorBrewer)
+packages(reshape)
+packages(ggplot2)
+
+  GDA94.50 <- CRS("+proj=utm +zone=50 +south +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs")
+  GDA94 <- CRS("+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs")
+
+# computer
+# computer <- "~"
+computer <- "//654cw-20990/Amy"
+
+# define paths for input and output files
+input_path <- paste0(computer,'/GIS_data/Perth-Peel/zonation/100m/')
+output_path <- paste0(computer,'/GIS_data/Perth-Peel/zonation/100m/Conservation_Letters/output/')
+
+# import biodiversity feature names
+  names <- as.vector(read.table(paste0(input_path,'cl.ppsa.rank.spp'), header=F, sep='\t')[,6])
+
+# date of the output files
+#   analysis.date <- '20140728' # remember to update to correct date
+  analysis.date <- '20140924'
+
+  save.plots <- FALSE
+```
+
+```{r colour palettes}
+map.background <- "whitesmoke"
+
+pa.colours <- d(label=c("Level 3","Level 2","Level 3","Priority protected","Priority unprotected"),colour=c("#78c679","#31a354","#006837","#a6611a","grey40"),stringsAsFactors = F)
+
+dev.colours <- d(label=c("Existing","Proposed","Cleared","Retained"),colour=c("grey60","#fdae61","#d7191c","#2c7bb6"),stringsAsFactors = F)
+
+# colours for the curves plots - Heini
+# col.all <- c('dark grey', 'skyblue2', 'skyblue4', 'darkolivegreen3', 'darkolivegreen4')
+# col.nonmnes <- c('lightskyblue4', 'skyblue2', 'steelblue', 'dodgerblue3', 'dodgerblue4')
+# col.mnes <- c('rosybrown4', 'lightcoral', 'indianred', 'brown1', 'red4')
+
+# colours for the curves plots - Amy
+col.all <- c("grey60",brewer.pal(4,"Set1"))
+col.nonmnes <- brewer.pal(9,"Blues")[4:9]
+col.mnes <- brewer.pal(9,"Reds")[4:9]
+
+pri.col = c('dark grey', 'turquoise', 'yellow', 'orange', 'red')
+pa.col = c('palegreen3', 'palegreen4')
+pri.breaks = c(0,0.7,0.85,0.9,0.95,1)
+leg.labels <- c("top 5%","top 10%","top 15%","top 30%","rest")
+
+```
+
+```{r import curve data}
+# LH General impact assessment
+
+# get names of Zonation curves-files (you can also do this manually)
+files <- grep('.curves.txt', list.files(output_path), value=T)
+  files <- files[grep(analysis.date,files)]
+  files <- files[!grepl("baseline",files)] # remove baseline scenario & scenarios with protected areas
+
+# check for species that have zero observations at the start of the prioritisation
+  baseline.curves <- read.table(paste0(output_path,"CL_baseline_",analysis.date,".CAZ_E.curves.txt"), skip=1, header=F, sep='')
+      colnames(baseline.curves) <- c('Prop_landscape_lost', 'cost_needed_for_top_fraction', 'min_prop_rem', 'ave_prop_rem', 'W_prop_rem', 'ext-1', 'ext-2', names)
+  zero.obs <- baseline.curves[1,8:ncol(baseline.curves)]
+    names(zero.obs[which(zero.obs==0)])
+
+# when does the first species go extinct in the baseline scenario?
+  extinct <- baseline.curves[baseline.curves$min_prop_rem==0,][1,]
+    cat("First species goes extinct at step",row.names(extinct), "with",extinct$Prop_landscape_lost*100, "% removed","\n")
+   names(extinct[which(extinct==0)])
+  
+# % species distributions in top fractions
+  baseline.sp.dist <- d(top.fraction=c(0.05,0.1,0.3),mean=NA,se=NA,min=NA)
+  
+for(i in seq(baseline.sp.dist$top.fraction)){
+    baseline.sp.dist$mean[i] <- baseline.curves$ave_prop_rem[baseline.curves$Prop_landscape_lost>=(1-baseline.sp.dist$top.fraction[i])][1]
+    baseline.sp.dist$se[i] <- round(se(t(baseline.curves[baseline.curves$Prop_landscape_lost>=(1-baseline.sp.dist$top.fraction[i]),8:ncol(baseline.curves)][1,])),3)
+    baseline.sp.dist$min[i] <- baseline.curves$min_prop_rem[baseline.curves$Prop_landscape_lost>=(1-baseline.sp.dist$top.fraction[i])][1]
+  }
+
+```
+
+```{r identify cleared area}
+# how much area is cleared in each impact scenario?
+# import scenario rasters
+      scenario.files <- dir(paste0(input_path,"scenarios/final/"),pattern=".tif$",full.names=T)
+      scenarios <- stack(scenario.files[!grepl("offsets3|offsets4",scenario.files)])
+      ibra.scenarios <- stack(scenario.files[grepl("offsets3|offsets4",scenario.files)]) 
+
+tryCatch({
+  cleared_area <- read.csv(paste0(output_path,"cleared_area_",analysis.date,".csv"))
+  }, error = function(err){
+  
+      cleared_area <- data.frame(scenario=c(names(scenarios),names(ibra.scenarios)),cleared=NA,cleared.ha=NA,protected=NA,protected.ha=NA,total=NA)
+  
+        for(i in 1:nlayers(scenarios)){
+          r <- scenarios[[i]]
+          cleared_area$total[i] <- length(r[!is.na(r)])
+          cleared_area$cleared.ha[i] <- length(r[r<=2])
+          cleared_area$cleared[i] <- cleared_area$cleared.ha[i]/cleared_area$total[i]
+          cleared_area$protected.ha[i] <- length(r[r>3])
+          cleared_area$protected[i] <- cleared_area$protected.ha[i]/cleared_area$total[i]
+          cat(names(r),"\n")
+        }
+  
+  
+        for(i in 1:nlayers(ibra.scenarios)){
+          r <- ibra.scenarios[[i]]
+          cleared_area$total[nlayers(scenarios)+i] <- length(r[!is.na(r)])
+          cleared_area$cleared.ha[nlayers(scenarios)+i] <- length(r[r<=2])
+          cleared_area$cleared[nlayers(scenarios)+i] <- cleared_area$cleared.ha[nlayers(scenarios)+i]/cleared_area$total[nlayers(scenarios)+i]      
+          if(names(r)=="offsets4.clipped"){
+            cleared_area$protected.ha[nlayers(scenarios)+i] <- length(r[r>4])
+            } else cleared_area$protected.ha[nlayers(scenarios)+i] <- length(r[r>3])
+          cleared_area$protected[nlayers(scenarios)+i] <- cleared_area$protected.ha[nlayers(scenarios)+i] /cleared_area$total[nlayers(scenarios)+i]
+          cat(names(r),"\n")
+        }
+        
+        write.csv(cleared_area,paste0(output_path,"cleared_area_",analysis.date,".csv"))
+      })
+
+```
+
+```{r produce baseline priority map}
+
+zonation_priority <- raster(paste0(output_path,"CL_baseline_",analysis.date,".CAZ_E.rank.asc"))
+
+PP.mask <- raster("~/GIS_Data/Perth-Peel/mask files/perth.mask.tif")
+PP.clipping.mask <- raster("~/GIS_Data/Perth-Peel/mask files/perth.clipping.mask.tif")
+PP.shp <- readShapePoly("~/GIS_data/Perth-Peel/DOP/DoP_StrategicAssessmentStudyBoundary_Extended_20121004_GDA94.shp", proj4=GDA94)
+  PP.shp <- spTransform(PP.shp,GDA94.50)
+
+IBRA.shp <- readShapePoly("~/GIS_data/Perth-Peel/environmental data/PP_IBRA.shp", proj4=GDA94.50)
+
+IsBecomes.zonation <- matrix(c(0,0.50,1, 0.50,0.70,2,0.70,0.85,3,0.85,0.90,4,0.90,0.95,5,0.95,1.00,6), ncol=3, byrow=TRUE)
+  
+reclassified.zonation <- reclassify(zonation_priority,IsBecomes.zonation)
+
+leg.labels <- c("top 5%","top 10%","top 15%","top 30%","top 50%","rest")
+breaks <- c(0,0.2,0.5,0.75,0.9,0.95,0.98,1)
+colours <- c("black","dark blue","blue","yellow","magenta","dark red", "red")
+
+top.30 <- zonation_priority
+  top.30[top.30 < 0.7] <-NA
+  top.30[!is.na(top.30)] <- 1
+
+  if(save.plots==TRUE){
+    
+    png(paste0(output_path,"zonation.legend.png"),height=5,width=3,units="cm",res=300, bg="transparent")
+    par(mar=c(0.25,1.5,0.25,0), oma=c(0,0,0,0))
+    image.plot( legend.only=TRUE, zlim= c(0,1), breaks=c(0,0.5,0.7,0.85,0.9,0.95,1),col=blue2red(6),axis.args=list( at=c(0,1), labels=c("Low","High")))
+    dev.off()
+    
+    png(paste0(output_path,"zonation_priority.png"),height=10,width=7,units="cm",res=300, bg="transparent")
+    plot(PP.mask,col="whitesmoke",legend=F,box=F,axes=F,zlim=c(1,7))
+      plot(zonation_priority,col=blue2red(100),add=T,legend=F)
+      plot(PP.shp, add=T, lwd=0.5)
+    #   image.plot(legend.only=TRUE,smallplot=c(.85, .87, .35, .55),legend.width=0.75,legend.shrink=0.25, zlim= c(0,1), nlevel=100, col=blue2red(100),axis.args=list(at=c(0,1), labels=c("Low","High"), cex.axis=0.6),legend.args=list(text='Conservation priority', side=4, font=2, line=2.5, cex=0.7)) 
+    #   scalebar(10000,type="line",divs=3,below="",cex=0.6,label=c("","10km",""))
+    dev.off()
+    
+    png(paste0(output_path,"classified_zonation_priority.png"),height=10,width=7,units="cm",res=300, bg="transparent")
+    par(mar=c(0.25,1.5,0.25,0), oma=c(0,0,0,0))
+    plot(PP.mask,col="whitesmoke",legend=F,box=F,axes=F,zlim=c(1,7))
+      plot(reclassified.zonation,col=blue2red(6),add=T,legend=F)
+      plot(PP.shp, add=T, lwd=0.5)
+    #   legend("bottomright",leg.labels,col=rev(blue2red(7)),pch=15,bty="n",title="Conservation priority",cex=0.7)
+    #   scalebar(10000,type="line",divs=3,below="",cex=0.6,label=c("","10km",""))
+    dev.off()
+    png(paste0(output_path,"top30_raster.png"),height=10,width=7,units="cm",res=300, bg="transparent")
+    par(mar=c(0.25,1.5,0.25,0), oma=c(0,0,0,0))
+    plot(PP.clipping.mask,col="whitesmoke",legend=F,box=F,axes=F)
+      plot(top.30,col="darkgreen",legend=F,add=T)
+      plot(PP.shp, add=T, lwd=0.5)
+    #   scalebar(10000,type="line",divs=3,below="",cex=0.6,label=c("","10km",""))
+    dev.off()
+    
+    
+    png(paste0(output_path,"priority_top30_raster.png"),height=14,width=15,units="cm",res=300, bg="transparent")
+    par(mar=c(0.25,1.5,0.25,0), oma=c(0,0,0,0))
+    plot(PP.clipping.mask,col="whitesmoke",legend=F,box=F,axes=F,zlim=c(1,7))
+      plot(zonation_priority,col=blue2red(100),add=T,legend=F)
+      plot(PP.shp, add=T, lwd=0.5)
+      image.plot(legend.only=TRUE,smallplot=c(.85, .87, .35, .55),legend.width=0.75,legend.shrink=0.25, zlim= c(0,1), nlevel=100, col=blue2red(100),axis.args=list(at=c(0,1), labels=c("Low","High"), cex.axis=0.6),legend.args=list(text='Conservation priority', side=4, font=2, line=2.5, cex=0.7)) 
+      mtext("a)",side=3,line=-1,adj=0,cex=0.8)
+    #   scalebar(10000,type="line",divs=3,below="",cex=0.6,label=c("","10km",""))
+    
+    plot(PP.mask,col="whitesmoke",legend=F,box=F,axes=F)
+      plot(top.30,col="darkgreen",legend=F,add=T)
+      plot(PP.shp, add=T, lwd=0.5)
+      mtext("b)",side=3,line=-1,adj=0,cex=0.8)
+    dev.off()
+
+     png(paste0(output_path,"priorities.png"),height=20,width=15,units="cm",res=300, bg="transparent",pointsize=14)
+     par(mar=c(0.25,1.5,0.25,4), oma=c(0,0,0,0))
+     plot(zonation_priority,col=pri.col,breaks=pri.breaks,legend=F,box=F,axes=F)
+      plot(PP.shp, add=T, lwd=0.5)
+    legend('topright', inset=c(-0.20,0), leg.labels, col="black",fill=rev(pri.col), bty="n", title="Conservation priority", cex=1, xpd=NA)
+    #   scalebar(10000,type="line",divs=3,below="",cex=0.6,label=c("","10km",""))
+    dev.off()
+    
+}
+
+```
+
+```{r whats already protected}
+# calculate the area currently protected
+  protected.curves <- read.table(paste0(output_path,"CL_protected.areas_",analysis.date,".CAZ_ME.curves.txt"), skip=1, header=F, sep='')
+      colnames(protected.curves) <- c('Prop_landscape_lost', 'cost_needed_for_top_fraction', 'min_prop_rem', 'ave_prop_rem', 'W_prop_rem', 'ext-1', 'ext-2', names)
+
+  protected.index <- which(grepl("protected.areas",names(scenarios))==TRUE)
+  protected.areas <- scenarios[[protected.index[1]]]
+  protected.areas.clipped <- scenarios[[protected.index[2]]]
+  
+  PAs <- protected.areas.clipped
+  PAs[PAs==3] <- NA
+
+
+protected.table <- data.frame(scenario=c("protected.areas","protected.areas1","protected.areas2","protected.areas3"),area=NA,protected.vegetation=NA,protected.priorities=NA,mean.dist=NA,min.dist=NA,se.dist=NA,n.sp=NA,mean.zonation=NA,min.zonation=NA,raster.value=c(3,6,5,4)) 
+
+for(h in seq(protected.table$scenario)){
+# extract cleared area from clipped scenario
+    if(h == 1) {
+    protected <- cleared_area$protected.ha[cleared_area$scenario=="protected.areas"]
+    protected.vegetation <- cleared_area$protected[cleared_area$scenario=="protected.areas_clipped"]
+    PAs <- protected.areas.clipped
+      PAs[PAs==3] <- NA 
+    } else {
+      protected <- length(protected.areas[protected.areas>=protected.table$raster.value[h]])
+      protected.vegetation <- length(protected.areas.clipped[protected.areas.clipped>=protected.table$raster.value[h]])/length(protected.areas.clipped[!is.na(protected.areas.clipped)])
+      PAs <- protected.areas.clipped
+        PAs[PAs!=protected.table$raster.value[h]] <- NA 
+    }
+    a <- protected.curves[which(protected.curves$Prop_landscape_lost>(1-protected.vegetation))[1],] # first line greater than cleared area - conservative
+    #a <- curves[which.min(abs(curves$Prop_landscape_lost-cleared)),] # line closest in value to cleared area
+    
+    # calculate impacts
+    protected.table$area[h] <- protected
+    protected.table$protected.vegetation[h] <- round(protected.vegetation*100,2)
+    protected.table$protected.priorities[h] <- round(length(top.30[PAs])/length(top.30)*100,2)
+    protected.table$mean.dist[h] <- (a[, 4]*100)
+    protected.table$min.dist[h] <- (a[, 3]*100)
+
+# how would zonation do with the same area?    
+    z <- baseline.curves[which(baseline.curves$Prop_landscape_lost>(1-protected.vegetation))[1],] # first line greater than cleared area - conservative
+    protected.table$mean.zonation[h] <- (z[, 4]*100)
+    protected.table$min.zonation[h] <- (z[, 3]*100)
+ # subset a to just keep species distribution data
+    a <- a[,8:ncol(a)]
+
+    protected.table$se.dist[h] <- round(se(t(a))*100,3)
+    protected.table$n.sp[h] <- length(which(a == 0))
+ }
+
+
+```
+
+
+```{r make scenario maps}
+
+development <- c("scenario3_development.footprint","scenario8_infrastructure","scenario6_brm.extraction","scenario7_pines","scenario9_cumulative.development","CL_EIA1","CL_EIA2","CL_EIA3O1","CL_EIA3O2")
+  dev.label <- c("1. Urban/Industrial","2. Infrastructure","3. Mining", "4. Forestry", "5. Cumulative development","EIA1","EIA2","EIA3O1","EIA3O2")
+
+conflict.table <- data.frame(scenario=dev.label,top.conflict.area=NA,protected.conflict.area=NA,prop.dev.t30=NA,prop.dev.pa=NA,prop.top=NA,prop.protected=NA,prop.protected1=NA,prop.protected2=NA,prop.protected3=NA)
+  conflict.table <- conflict.table[order(conflict.table$scenario),]
+
+ for (i in seq(development)){
+  cat("Calculating conflicts for",dev.label[i],"\n")
+  r <- scenarios[[which(names(scenarios) %in% development[i]==TRUE)]]
+    r[r==3] <- NA
+         
+#    png(paste0(output_path,development[i],".png"),height=10,width=7,units="cm",res=300, bg="transparent")
+#     par(mar=c(0.25,1.5,0.25,0), oma=c(0,0,0,0))   
+#     
+#     plot(PP.clipping.mask,col="grey90",legend=F,box=F,axes=F)
+#       plot(r,col="grey30",add=T,legend=F)
+#       plot(PP.shp, add=T, lwd=0.5)
+# #     mtext(dev.label[i],side=3,line=-1.5,adj=0.85,cex=0.8)
+#   
+#   dev.off()
+ 
+# conflicts with the top conservation priorities
+    conflict.t30 <- top.30
+    conflict.t30 <- sum(r,conflict.t30)
+#       conflict.t30[conflict.t30!=3] <- NA # evaluate conflicts only with proposed development
+
+  # area of top 30 that conflicts with development
+    conflict.table$top.conflict.area[i] <- length(conflict.t30[!is.na(conflict.t30)])
+  # proportion of top 30 that conflicts with development
+    conflict.table$prop.top[i] <- round(length(conflict.t30[!is.na(conflict.t30)])/length(top.30[!is.na(top.30)])*100,2)
+  # proportion of development area that conflicts with development
+    conflict.table$prop.dev.t30[i] <- round(length(conflict.t30[!is.na(conflict.t30)])/length(r[!is.na(r)])*100,2)
+
+# conflicts with current protected areas
+  protected.areas[protected.areas==3] <- NA
+    conflict.pa <- sum(r,protected.areas)
+
+    conflict.table$protected.conflict.area[i] <- length(conflict.pa[!is.na(conflict.pa)])
+    conflict.table$prop.dev.pa[i] <- round(length(conflict.pa[!is.na(conflict.pa)])/length(r[!is.na(r)])*100,2)
+    conflict.table$prop.protected[i] <- round(length(conflict.pa[!is.na(conflict.pa)])/length(protected.areas[!is.na(protected.areas)])*100,2)
+    conflict.table$prop.protected1[i] <- round(length(conflict.pa[conflict.pa==7])/length(protected.areas[protected.areas==6])*100,2)
+    conflict.table$prop.protected2[i] <- round(length(conflict.pa[conflict.pa==6])/length(protected.areas[protected.areas==5])*100,2)
+    conflict.table$prop.protected3[i] <- round(length(conflict.pa[conflict.pa==5])/length(protected.areas[protected.areas==4])*100,2)
+
+#   png(paste0(output_path,development[i],"_top30.conflict.png"),height=10,width=7,units="cm",res=300, bg="transparent")
+#   par(mar=c(0.25,1.5,0.25,0), oma=c(0,0,0,0))
+#     
+#     plot(PP.clipping.mask,col="grey90",legend=F,box=F,axes=F)
+#       plot(conflict.t30,col=c("red"),add=T,legend=F)
+#       plot(PP.shp, add=T, lwd=0.5)
+# #     mtext(dev.label[i],side=3,line=-1.5,adj=0.85,cex=0.8)
+#   
+#   dev.off()
+# 
+#   png(paste0(output_path,development[i],"_protected.areas_conflicts.png"),height=10,width=7,units="cm",res=300, bg="transparent")
+#   par(mar=c(0.25,1.5,0.25,0), oma=c(0,0,0,0))
+#   
+#   plot(PP.clipping.mask,col="grey90",legend=F,box=F,axes=F)
+#         plot(conflict.pa,col=c("red"),add=T,legend=F)
+#         plot(PP.shp, add=T, lwd=0.5)
+#   #     mtext(dev.label[i],side=3,line=-1.5,adj=0.85,cex=0.8)
+#   
+#   dev.off()
+  
+
+png(paste0(output_path,development[i],"_development_conflicts.png"),height=20,width=15,units="cm",res=300, bg="transparent",pointsize=14)
+     par(mar=c(0.25,1.5,0.25,4), oma=c(0,0,0,0))
+     plot(r,col=c("grey30","grey30","whitesmoke"),legend=F,box=F,axes=F)
+#       plot(r,col="grey30",add=T,legend=F)
+
+  r[r==3] <- NA
+  r[!is.na(r)] <-1
+  dev.pri <- r*zonation_priority
+
+      plot(dev.pri,col=pri.col,breaks=pri.breaks,legend=F,add=T)
+      plot(PP.shp, add=T, lwd=0.5)
+    legend('topright', inset=c(-0.20,0), leg.labels, col="black",fill=rev(pri.col), bty="n", title="Conservation priority", cex=1, xpd=NA)
+    #   scalebar(10000,type="line",divs=3,below="",cex=0.6,label=c("","10km",""))
+    dev.off()
+
+}
+
+# png(paste0(output_path,"offsets.png"),height=10,width=7,units="cm",res=300, bg="transparent")
+#   par(mar=c(0.25,1.5,0.25,0), oma=c(0,0,0,0))
+# 
+# plot(PP.clipping.mask,col="grey90",legend=F,box=F,axes=F)
+#       plot(conflict,col=c("red"),add=T,legend=F)
+#       plot(PP.shp, add=T, lwd=0.5)
+# #     mtext(dev.label[i],side=3,line=-1.5,adj=0.85,cex=0.8)
+#   
+#   dev.off()
+
+
+
+write.csv(conflict.table,paste0(output_path,"CL_conflict.table_",analysis.date,".csv"),row.names=F)
+```
+
+```{r assess impacts}
+# create the output table
+  loss.files <- files[!grepl("offsets|CL_eia3_20140924.CAZ_ME.curves.txt",files)]
+  loss.table <- as.data.frame(matrix(NA, length(loss.files), 13))
+    dim(loss.table)
+
+  distribution.table <- as.data.frame(matrix(NA, length(names), length(loss.files)))
+  colnames(distribution.table) <- loss.files
+  distribution.table$species <- names
+
+# match scenario with mask layer
+  ## this is a bit of a hack as I didn't give them the same labels - fail
+  ## need to make sure that these get updated
+  loss.table[,1] <- gsub('.curves.txt', '', loss.files)
+#     loss.table$mask.layer <- gsub(paste0("_",analysis.date),"",gsub("CL_","",loss.table[,1]))
+    loss.table$mask.layer <- c("scenario6_brm.extraction","scenario9_cumulative.development","scenario3_development.footprint","CL_EIA1","CL_EIA2","CL_EIA3O1","CL_EIA3O2","scenario8_infrastructure","scenario7_pines","protected.areas")
+    loss.table$order <- c(3,5,1,7,8,9,10,2,4,6)
+
+# calculating impact numbers for each scenario
+for (h in 1:length(loss.files)){
+  cat("calculating impact for",loss.table[h,1],"\n")
+# Name of original curves file
+  input <- paste0(output_path, loss.files[h])
+
+try({
+  # Upload the curves file
+    curves <- read.table(input, skip=1, header=F, sep='')
+      colnames(curves) <- c('Prop_landscape_lost', 'cost_needed_for_top_fraction', 'min_prop_rem', 'ave_prop_rem', 'W_prop_rem', 'ext-1', 'ext-2', names)
+    
+  # extract cleared area from clipped scenario
+    developed <- cleared_area$cleared[cleared_area$scenario==loss.table$mask.layer[h]]
+    cleared <- cleared_area$cleared[cleared_area$scenario==paste0(loss.table$mask.layer[h],"_clipped")]
+    
+  # identify curve data associated with cleared area
+    a <- curves[which(curves$Prop_landscape_lost>cleared)[1],] # first line greater than cleared area - conservative
+    #a <- curves[which.min(abs(curves$Prop_landscape_lost-cleared)),] # line closest in value to cleared area
+    
+    # calculate impacts
+    loss.table[h,2] <- round(developed*100,2)
+    loss.table[h,3] <- round(cleared*100,2)
+    loss.table[h,4] <- 100-(a[, 4]*100)
+    loss.table[h,5] <- 100-(a[, 3]*100)
+  
+    # subset a to just keep species distribution data
+    a <- a[,8:ncol(a)]
+    distribution.table[,h] <- t(a)
+    
+    loss.table[h,6] <- length(which(a == 0))
+    loss.table[h,7] <- paste(gsub("PP\\/|\\.PP|\\.tif|SSI|SDM","",gsub("_"," ",colnames(a[which(a == 0)]))), collapse=', ')
+    loss.table[h,8] <- length(which(a > 0 & a <= 0.1))
+    loss.table[h,9] <- paste(gsub("PP\\/|\\.PP|\\.tif|SSI|SDM","",gsub("_"," ",colnames(a[which(a > 0 & a <= 0.1)]))), collapse=', ')
+    loss.table[h,10] <- length(which(a > 0.1 & a <= 0.25))
+    loss.table[h,11] <- paste(gsub("PP\\/|\\.PP|\\.tif|SSI|SDM","",gsub("_"," ",colnames(a[which(a > 0.1 & a <= 0.25)]))), collapse=', ')
+    loss.table[h,12] <- length(which(a > 0.25 & a <= 0.5))
+    
+    
+    loss.table[h,13] <- paste(gsub("PP\\/|\\.PP|\\.tif|SSI|SDM","",gsub("_"," ",colnames(a[which(a > 0.25 & a <= 0.5)]))), collapse=', ')
+  
+    plot(curves$Prop_landscape_lost,curves$ave_prop_rem,type="l",main=loss.table[h,1])
+      lines(curves$Prop_landscape_lost,curves$min_prop_rem,lty=2)
+      abline(v=cleared,col="red")
+  
+  })
+ 
+}
+
+  colnames(loss.table) <- c('Scenario', '%area_developed', '%_area_cleared', 'mean_loss(%)', 'max_loss(%)', '100%_loss_#', '100%_loss_sp', '90%_loss_#', '90%_loss_sp', '75%_loss_#', '75%_loss_sp', '50%_loss_#', '50%_loss_sp','mask.layer','order')
+
+ write.csv(distribution.table, paste0(output_path, '/CL_distribution.impacts_',analysis.date,'.csv'), row.names=F)
+
+```
+
+```{r link to horrenda table}
+trim <- function (x) gsub("^\\s+|\\s+$", "", x)
+
+# load horrenda table
+  protected.species <- read.csv("~/GIS_data/Perth-Peel/species data/WA listed protected species.csv")
+
+# at risk species
+  for(h in seq(loss.files)){
+
+    for(j in c(7,9,11,13)){
+    
+      try({
+        sp <- strsplit(loss.table[h,j],",")
+          for(i in seq(sp[[1]])){
+            mnes <- ""
+            sdm <- ""
+            taxa <- ""
+            species <- trim(sp[[1]][i])
+            try({
+              if(!is.na(protected.species$mnes[protected.species$Scientific.Name==species])==TRUE) mnes <- "MNES"
+              if(protected.species$final.records[grepl(species,protected.species$Scientific.Name)]<20) sdm <- "SSI"
+              taxa <- protected.species$Taxa[protected.species$Scientific.Name==species]
+                taxa <- gsub("\\b(\\w)","\\U\\1",gsub("s","",taxa), perl=TRUE)
+              sp[[1]][i] <- paste0(species," (",gsub("^,|$,","",(paste(mnes,sdm,taxa,sep=","))),")")
+              })
+          }
+        loss.table[h,j] <- paste(sp[[1]],collapse=", ")
+      })
+    }
+    
+  }
+
+loss.table <- loss.table[order(loss.table$order),]
+ write.csv(loss.table, paste0(output_path, '/CL_Development plan impacts_',analysis.date,'.csv'), row.names=F)
+
+
+```
+
+
+```{r estimate offsets}
+# read in cumulative offsets curve data
+offsets.files <- files[grepl("offsets",files)]
+
+offsets.table <- d(scenario=offsets.files,area.lost=NA,bio.loss.to.offset=NA,protected.area=NA,protected.bio=NA,offset.bio=NA,total.protected=NA,offset.needed=NA,offset.needed.ha=NA,sp.not.PA=NA)
+  offsets.table$mask.layer <- c("offsets_clipped","offsets1.clipped","offsets2.clipped","offsets3.clipped","offsets4.clipped")
+
+pdf(paste0(output_path,"offset.curves_",analysis.date,".pdf"),paper="a4r",pointsize=12)
+
+for(i in 1:5){
+  # means based on all species within PPSA, no point species outside PPSA
+  if(i <= 0){
+    mean.col <- "ave_prop_rem"
+    min.col <- "min_prop_rem"
+  } else { 
+    mean.col <- "sdm.mean"
+    min.col <- "sdm.min"
+    }
+  
+  offsets.curves <- read.table(paste0(input_path,"Conservation_Letters/output/",offsets.files[i]), skip=1, header=F, sep='')
+        colnames(offsets.curves) <- c('Prop_landscape_lost', 'cost_needed_for_top_fraction', 'min_prop_rem', 'ave_prop_rem', 'W_prop_rem', 'ext-1', 'ext-2', names)
+  sdm.species <- names[!grepl("SSI",names)]  
+    offsets.curves$sdm.mean <- rowMeans(offsets.curves[colnames(offsets.curves) %in% sdm.species])
+    offsets.curves$sdm.min <- apply(offsets.curves[colnames(offsets.curves) %in% sdm.species], 1, min)
+  
+  offsets.table$area.lost[i] <- cleared_area$cleared[grepl(offsets.table$mask.layer[i],cleared_area$scenario)]
+  offsets.table$bio.loss.to.offset[i] <- 1-(offsets.curves[which(offsets.curves$Prop_landscape_lost>offsets.table$area.lost[i])[1],mean.col])
+  
+#   if(i==2) { 
+#     offsets.table$protected.area[i] <- cleared_area$protected[grepl(offsets.table$mask.layer[1],cleared_area$scenario)]
+#     } else {
+      offsets.table$protected.area[i] <- cleared_area$protected[grepl(offsets.table$mask.layer[i],cleared_area$scenario)]
+#     }
+  
+  offsets.table$protected.bio[i] <- offsets.curves[which(offsets.curves$Prop_landscape_lost>(1-offsets.table$protected.area[i]))[1],mean.col]
+  offsets.table$offset.bio[i] <- offsets.table$protected.bio[i] + offsets.table$bio.loss.to.offset[i]
+  offsets.table$total.protected[i] <- 1-offsets.curves$Prop_landscape_lost[which(offsets.curves[, mean.col] <= offsets.table$offset.bio[i])[1]]
+  offsets.table$offset.needed[i] <- offsets.table$total.protected[i]-offsets.table$protected.area[i]
+  offsets.table$offset.needed.ha[i] <- offsets.table$offset.needed[i]*cleared_area$total[grepl(offsets.table$mask.layer[i],cleared_area$scenario)]
+  
+ a <- offsets.curves[which(offsets.curves$Prop_landscape_lost>(1-offsets.table$protected.area[i]))[1],8:ncol(offsets.curves)] 
+offsets.table$sp.not.PA[i] <- length(a[a==0])
+  
+  plot(offsets.curves$Prop_landscape_lost,offsets.curves$ave_prop_rem,type="l",main=offsets.files[i],bty="n",ylim=c(0,1),xlim=c(0,1),col="gray")
+    lines(offsets.curves$Prop_landscape_lost,offsets.curves[,mean.col],lty=1)    
+    lines(offsets.curves$Prop_landscape_lost,offsets.curves$min_prop_rem,lty=2,col="gray")
+    lines(offsets.curves$Prop_landscape_lost,offsets.curves[,min.col],lty=2)
+  #       lines(protected.curves$Prop_landscape_lost,protected.curves$ave_prop_rem,col="blue")
+  #       lines(protected.curves$Prop_landscape_lost,protected.curves$min_prop_rem,col="blue",lty=2)
+        abline(v=offsets.table$area.lost[i],col="red",lty=3,lwd=1.5)
+        abline(h=1-offsets.table$bio.loss.to.offset[i],col="red",lty=3,lwd=1.5)
+  #       abline(v=(1-cleared_area$cleared[grepl("protected.areas_clipped",cleared_area$scenario)]),col="green") # protected areas without development
+        abline(h=offsets.table$protected.bio[i],col="darkgreen",lty=3,lwd=1.5)
+        abline(v=(1-offsets.table$protected.area[i]),col="darkgreen",lty=3,lwd=1.5) # protected areas with development
+        abline(h=offsets.table$offset.bio[i],col="blue",lty=3,lwd=1.5)
+        abline(v=1-offsets.table$total.protected[i],col="blue",lty=3,lwd=1.5)
+  legend("topright",c("Lost to development","Protected","Offsets needed"),col=c("red","darkgreen","blue"),bty="n",lty=3,cex=0.75,lwd=1.5)
+
+}
+
+dev.off()
+
+write.csv(offsets.table,paste0(output_path,"offsets_",analysis.date,".csv"),row.names=F)
+```
+
+```{r plot offsets}
+offsets <- gsub("\\.curves\\.txt","",offsets.table$scenario)
+
+for(i in 1:5){
+  r <- raster(paste0(output_path,offsets[i],".rank.asc"))
+    r[r < (1-offsets.table$total.protected[i])] <- NA
+    r[r >= (1-offsets.table$protected.area[i])] <- NA
+    
+  if(i >=3) {
+    protected <- ibra.scenarios[[which(names(ibra.scenarios)==offsets.table$mask.layer[i])]]
+    } else protected <- scenarios[[which(names(scenarios)==offsets.table$mask.layer[i])]]
+    
+    if(i==4) {
+      r[!is.na(r)] <- 4
+      protected[protected < 5] <- NA
+      } else {
+      r[!is.na(r)] <- 3
+      protected[protected < 4] <- NA
+  }
+    assign(paste0("offsets",i,".priority"),merge(r,protected))
+}
+
+
+  png(paste0(output_path,"offset.priorities.png"),width=18,height=15,units="cm",res=300,bg="transparent")
+  par(oma=c(0,0,0,0),mar=c(0,0,2,0),mfrow=c(2,2))
+  plot(offsets1.priority,axes=F,box=F,col=rev(rainbow(4)),main="Offsets - Scenario 1",legend=F,zlim=c(3,6))
+    legend("topright",legend = c("Offsets","Low protect.","Medium protect.","High protect."),bty = "n",col=rev(rainbow(4)),pch=15,cex=0.8)
+    plot(PP.shp,add=T)
+
+  plot(offsets2.priority,axes=F,box=F,col=rev(rainbow(4)),main="Offsets - Scenario 2",legend=F,zlim=c(3,6))
+    legend("topright",legend = c("Offsets target","High protect."),bty = "n",col=rev(rainbow(4))[c(1,4)],pch=15,cex=0.8)
+    plot(PP.shp,add=T)
+  
+  plot(offsets3.priority,axes=F,box=F,col=rev(rainbow(4)),main="Offsets - Scenario 3",legend=F,zlim=c(3,6))
+    legend("topright",legend = c("Offsets","Low protect.","Medium protect.","High protect."),bty = "n",col=rev(rainbow(4)),pch=15,cex=0.8)
+    plot(PP.shp,add=T)
+    plot(IBRA.shp,add=T)
+  
+  plot(offsets4.priority,axes=F,box=F,col=rev(rainbow(5)),main="Offsets - Scenario 4",legend=F,zlim=c(3,7))
+    legend("topright",legend = c("IBRA Offsets","PPSA Offsets","Low protect.","Medium protect.","High protect."),bty = "n",col=rev(rainbow(5)),pch=15,cex=0.8)
+    plot(PP.shp,add=T)
+    plot(IBRA.shp,add=T)
+
+dev.off()
+
+ png(paste0(output_path,"offsets1.png"),height=10,width=7,units="cm",res=300, bg="transparent",pointsize=12)
+    par(mar=c(0.25,1.5,0.25,0), oma=c(0,0,0,0),xpd=NA)
+plot(scenarios[[53]],col=c("grey30","whitesmoke"),breaks=c(1,2,3),axes=F,box=F,legend=F)
+  plot(offsets1.priority,col=c("green3","darkgreen"),breaks=c(3,4,6),add=T,legend=F,zlim=c(3,6))
+#     legend("bottomright",legend = c("Currently protected","Offsets","Development"),bty = "n",col=c("darkgreen","green3","grey30"),pch=15,cex=1)
+    plot(PP.shp,add=T)
+dev.off()
+
+
+```
+
+```{r calculate values for special species}
+files <- gsub(paste0("_",analysis.date,'.CAZ_ME.curves.txt'),"",grep(paste0(analysis.date,'.CAZ_ME.curves.txt'), list.files(output_path), value=T))
+
+# create table for species of interest
+  special.sp.table <- d(scenario=loss.table$Scenario,fraction=NA,Calyptorhynchus_latirostris=NA,cbc.feeding=NA,Drakaea_elastica=NA,Caladenia_huegelii=NA,Conospermum_undulatum=NA,Pseudocheirus_occidentalis=NA,"Limestone_ridges_(SCP_26a)"=NA,EPA_Biodiversity3_10pct=NA,EPA_Biodiversity3_30pct=NA)
+colnames(special.sp.table) <- c("scenario","fraction","Calyptorhynchus_latirostris","cbc.feeding","Drakaea_elastica","Caladenia_huegelii","Conospermum_undulatum","Pseudocheirus_occidentalis","Limestone_ridges_(SCP_26a)","EPA_Biodiversity3_10pct","EPA_Biodiversity3_30pct")
+
+# set the fractions
+# special.sp.table$fraction[grep("baseline",special.sp.table$scenario)] <- c(rep(0.05,3),rep(0.1,3),rep(0.3,3))
+# special.sp.table$fraction[grep("bushforever|protected.areas",special.sp.table$scenario)] <- (protected.table[match(protected.table$scenario,special.sp.table$scenario[grep("bushforever|protected.areas",special.sp.table$scenario)]),"cumulative.protection"])/100
+special.sp.table$fraction <- (loss.table[match(loss.table$Scenario,special.sp.table$scenario),"%_area_cleared"])/100
+  special.sp.table <- special.sp.table[!grepl("protected",special.sp.table$scenario),]
+
+for(i in seq(special.sp.table$scenario)){
+  cat("Calculating special feature distributions in",as.character(special.sp.table$scenario[i]),"\n")
+  
+  if(grepl("protected.areas",special.sp.table$scenario[i])==TRUE){
+    input <- paste0(output_path, "protected.areas_",analysis.date,".CAZ_ME.curves.txt")
+  } else {
+    input <- paste0(output_path, special.sp.table$scenario[i],".curves.txt")
+    }
+  
+    if(grepl("baseline",special.sp.table$scenario[i])==TRUE) input<- gsub("ME","",input)
+
+  # Upload the curves file
+    curves <- read.table(input, skip=1, header=F, sep='')
+    colnames(curves) <- c('Prop_landscape_lost', 'cost_needed_for_top_fraction', 'min_prop_rem', 'ave_prop_rem', 'W_prop_rem', 'ext-1', 'ext-2', names)
+    
+  if(grepl("scenario",special.sp.table$scenario[i])==TRUE) {
+    special.sp.table[i,3:ncol(special.sp.table)] <- 1 - (curves[curves$Prop_landscape_lost>=special.sp.table$fraction[i],match(names(special.sp.table[,3:ncol(special.sp.table)]),gsub("PP\\/|\\.PP|\\_PP|\\.tif|\\_SSI","",names(curves)))][1,])
+    } else {
+      special.sp.table[i,3:ncol(special.sp.table)] <- curves[curves$Prop_landscape_lost>=(1-special.sp.table$fraction[i]),match(names(special.sp.table[,3:ncol(special.sp.table)]),gsub("PP\\/|\\.PP|\\_PP|\\.tif|\\_SSI","",names(curves)))][1,]
+      }
+  }
+
+# calculate values within individual protected area levels
+  special.sp.table[grepl("protected.areas3",special.sp.table$scenario),2:ncol(special.sp.table)] <- special.sp.table[grepl("protected.areas3",special.sp.table$scenario),2:ncol(special.sp.table)] - special.sp.table[grepl("protected.areas2",special.sp.table$scenario),2:ncol(special.sp.table)]
+  special.sp.table[grepl("protected.areas2",special.sp.table$scenario),2:ncol(special.sp.table)] <- special.sp.table[grepl("protected.areas2",special.sp.table$scenario),2:ncol(special.sp.table)] - special.sp.table[grepl("protected.areas1",special.sp.table$scenario),2:ncol(special.sp.table)]
+
+write.csv(special.sp.table,paste0(output_path,"special.sp.table_",analysis.date,".csv"),row.names=F)
+
+special.plot <- special.sp.table[,c("scenario","Calyptorhynchus_latirostris","Caladenia_huegelii","Pseudocheirus_occidentalis")]
+
+special.plot <- melt(special.plot, id=c("scenario"))
+  special.plot <- special.plot[grepl("baseline_rank|protected.areas|scenario09_cumulative.development.lgz",special.plot$scenario),]
+  special.plot$scenario <- gsub("baseline_rank","High conservation priority",gsub("protected.areas","Currently protected",gsub("scenario09_cumulative.development.lgz","Cumulative development",special.plot$scenario)))
+  special.plot$variable <- gsub("Calyptorhynchus_latirostris","Carnaby's black cockatoo",gsub("Caladenia_huegelii","Grand spider orchid",gsub("Pseudocheirus_occidentalis","Western ringtail possum",special.plot$variable)))
+
+special.ggplot <- ggplot(special.plot, aes(x=variable, y=value, fill=scenario)) + geom_bar(stat = "identity", position=position_dodge()) + coord_flip() + scale_y_continuous("% of distribution") +  theme(panel.grid.minor = element_blank(),panel.background = element_blank(), axis.line = element_line(colour = "black"), axis.title.y = element_blank(),axis.text=element_text(size=12,colour="black"),axis.title=element_text(size=14,face="bold")) 
+
+
+```
+
+
+```{r save image}
+# save.image(paste0(output_path,"Analysis of Zonation runs from ",analysis.date,".Rdata"))
+
+```
+
+This doesn't work
+
+
+
+
+```{r identify biodiversity features in runs}
+
+# species <- gsub(".tif","",gsub("_"," ",names))
+# 
+# # number of features
+# length(species)
+# 
+# mnes.species <- species[species %in% protected.species$Scientific.Name[protected.species$mnes==TRUE]]
+#   mnes.species <- append(mnes.species,c("Swift Parrot","Regent Honeyeater",species[grep("Nominated",species)]))
+# 
+# birds <- species[species %in% protected.species$Scientific.Name[protected.species$Taxa=="birds"]]
+# #   birds <- append(birds,c("Swift Parrot","Regent Honeyeater"))
+# 
+# amphibians <- species[species %in% protected.species$Scientific.Name[protected.species$Taxa=="amphibians"]]
+# mammals <- species[species %in% protected.species$Scientific.Name[protected.species$Taxa=="mammals"]]
+# plants <- species[species %in% protected.species$Scientific.Name[protected.species$Taxa=="plants"]]
+# reptiles <- species[species %in% protected.species$Scientific.Name[protected.species$Taxa=="reptiles"]]
+# invertebrates <- species[species %in% protected.species$Scientific.Name[protected.species$Taxa=="invertebrates"]]
+# tecs <- species[!species %in% protected.species$Scientific.Name]
+# #   tecs <- tecs[!tecs %in% c("ghff foraging","ghff roosting","koala rawhabval6","Regent Honeyeater","Swift Parrot")]
+# sdm.species <- species[species %in% protected.species$Scientific.Name[protected.species$LH.sdm=="SDM"]]
+#   
+# 
+# cat("Total features:",length(names),"\n","MNES:",length(mnes.species),"\n", "amphibians:",length(amphibians),"\n","invertebrates:",length(invertebrates),"\n","birds:",length(birds),"\n","mammals:",length(mammals),"\n","plants:",length(plants),"\n","reptiles:",length(reptiles),"\n","tecs:",length(tecs),"\n","SDM:",length(sdm.species)+7)
+
+```
+
