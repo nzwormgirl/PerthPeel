@@ -1,0 +1,141 @@
+Title
+========================================================
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring web pages (click the **MD** toolbar button for help on Markdown).
+
+When you click the **Knit HTML** button a web page will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r species data}
+setwd("C:/Users/awhitehead/Documents/RSP/presentations/Perth-Peel/figures")
+packages(raster)
+packages(RColorBrewer)
+packages(maptools)
+packages(colorRamps)
+packages(fields)
+
+ibra.raster <- raster("C:/Users/awhitehead/Documents/GIS_Data/Perth-Peel/environmental data/pp_ibra_mask.tif")
+ibra.shp <- readShapePoly("~/GIS_Data/Perth-Peel/environmental data/PP_IBRA.shp")
+
+maxent.data <- read.csv("C:/Users/awhitehead/Documents/GIS_Data/Perth-Peel/Maxent_files/species_data/maxent.data.csv")
+  coordinates(maxent.data) <- c("easting","northing")
+
+png("species.png",height=10,width=7,units="cm",res=300, bg="transparent")
+  par(mar=c(0.25,1.5,0.25,0), oma=c(0,0,0,0))
+  plot(ibra.raster,col="whitesmoke",legend=F,box=F,axes=F)
+    plot(ibra.shp,add=T,lwd=0.5)
+    points(maxent.data[maxent.data$species=="Calyptorhynchus latirostris",],pch=".")
+dev.off()
+```
+
+
+
+```{r environmental layers}
+(envi.files <- dir("~/GIS_data/Perth-Peel/environmental data/100m/ibra/",pattern=".tif$", recursive=T, full.names=F)) 
+
+greys <- rev(grey(0:100/100))
+
+mean.temp <- raster(paste0("~/GIS_data/Perth-Peel/environmental data/100m/ibra/",envi.files[[5]]))
+temp.colour <- brewer.pal(9,"Reds")
+png("mean.temp_bw.png",height=10,width=7,units="cm",res=300, bg="transparent")
+par(mar=c(0.25,1.5,0.25,0), oma=c(0,0,0,0))
+plot(mean.temp,col=greys,legend=F,box=F,axes=F)
+  plot(ibra.shp,add=T,lwd=0.5)
+dev.off()
+
+veg <- raster(paste0("~/GIS_data/Perth-Peel/environmental data/100m/ibra/",envi.files[[33]]))
+veg.col <- brewer.pal(9,"Greens")
+png("veg_bw.png",height=10,width=7,units="cm",res=300, bg="transparent")
+par(mar=c(0.25,1.5,0.25,0), oma=c(0,0,0,0))
+plot(veg,col=greys,legend=F,box=F,axes=F)
+  plot(ibra.shp,add=T,lwd=0.5)
+dev.off()
+
+altitude <- raster(paste0("~/GIS_data/Perth-Peel/environmental data/100m/ibra/",envi.files[[13]]))
+topo.col <- brewer.pal(9,"Greys")
+png("topo_bw.png",height=10,width=7,units="cm",res=300, bg="transparent")
+par(mar=c(0.25,1.5,0.25,0), oma=c(0,0,0,0))
+plot(altitude,col=greys,legend=F,box=F,axes=F)
+  plot(ibra.shp,add=T,lwd=0.5)
+dev.off()
+
+Calyptorhynchus_latirostris <- raster("~/GIS_data/Perth-Peel/Maxent_files/environmental_data/100m/ibra/output/Calyptorhynchus_latirostris_avg.asc")
+
+png("Calyptorhynchus latirostris_bw.png",height=10,width=7,units="cm",res=300, bg="transparent")
+par(mar=c(0.25,1.5,0.25,0), oma=c(0,0,0,0))
+plot(Calyptorhynchus_latirostris,col=greys,legend=F,box=F,axes=F,zlim=c(0,1))
+  plot(PP.shp,add=T,lwd=1,border="black")
+  plot(ibra.shp,add=T,lwd=0.5)
+#points(maxent.data[maxent.data$species=="Calyptorhynchus latirostris",],pch=".")
+dev.off()
+
+```
+
+```{r SA figures}
+packages(maptools)
+PP.mask <- raster("~/GIS_data/Perth-Peel/environmental data/100m/extant_veg.mask.tif")
+PP.shp <- readShapePoly("~/GIS_data/Perth-Peel/DOP/DoP_StrategicAssessmentStudyBoundary_Extended_20121004")
+MNW.shp <- readShapePoly("~/GIS_data/Perth-Peel/DOP/DoP_PlanningRegions_20120821.shp")
+  MNW.shp <- MNW.shp[grepl("Metro North-West",MNW.shp$SUB_REGION),]
+
+cc_PP <- mask(resample(Calyptorhynchus_latirostris,PP.mask),PP.mask)
+
+png("cc_PP_bw.png",height=10,width=7,units="cm",res=300, bg="transparent")
+par(mar=c(0.25,1.5,0.25,0), oma=c(0,0,0,0))
+plot(cc_PP,col=greys,legend=F,box=F,axes=F,zlim=c(0,1))
+  plot(PP.shp, add=T, lwd=0.5)
+dev.off()
+
+mer_orn <- raster("~/GIS_data/Perth-Peel/Maxent_files/environmental_data/100m/ibra/output/Merops_ornatus.asc")
+  mer_orn <- mask(resample(mer_orn,PP.mask),PP.mask)
+
+png("mer_orn.png",height=10,width=7,units="cm",res=300, bg="transparent")
+par(mar=c(0.25,1.5,0.25,0), oma=c(0,0,0,0))
+plot(mer_orn,col=blue2red(10),legend=F,box=F,axes=F,zlim=c(0,1))
+  plot(PP.shp, add=T, lwd=0.5)
+dev.off()
+
+aca_ano <- raster("~/GIS_data/Perth-Peel/Maxent_files/environmental_data/100m/ibra/output/Acacia_anomala_avg.asc")
+  aca_ano <- mask(resample(aca_ano,PP.mask),PP.mask)
+
+png("aca_ano.png",height=10,width=7,units="cm",res=300, bg="transparent")
+par(mar=c(0.25,1.5,0.25,0), oma=c(0,0,0,0))
+plot(aca_ano,col=blue2red(10),legend=F,box=F,axes=F,zlim=c(0,1))
+  plot(PP.shp,add=T, lwd=0.5)
+dev.off()
+
+png("SA_region.png",height=10,width=7,units="cm",res=300, bg="transparent")
+par(mar=c(0.25,1.5,0.25,0), oma=c(0,0,0,0))
+plot(aca_ano,col="white",legend=F,box=F,axes=F,zlim=c(0,1))
+  plot(PP.shp, col="white", add=T, lwd=0.5) 
+dev.off()
+
+png("legend_bw.png",height=5,width=3,units="cm",res=300, bg="transparent")
+par(mar=c(0.25,1.5,0.25,0), oma=c(0,0,0,0))
+image.plot( legend.only=TRUE, zlim= c(0,1), nlevel=100, col=greys,axis.args=list( at=c(0,1), labels=c("","")))
+dev.off()
+
+png("aurin.legend.png",height=5,width=3,units="cm",res=300, bg="transparent")
+par(mar=c(0.25,1.5,0.25,0), oma=c(0,0,0,0))
+image.plot( legend.only=TRUE, zlim= c(0,1), breaks=c(0,0.2,0.5,0.75,0.9,1),col=rev(gray(0:4/4)),axis.args=list( at=c(0,1), labels=c("","")))
+dev.off()
+
+zonation_priority <- raster("~/GIS_data/Perth-Peel/zonation/100m/output_files/weighted/ws_rank1.rank.asc")
+
+png("zonation_priority.png",height=10,width=7,units="cm",res=300, bg="transparent")
+par(mar=c(0.25,1.5,0.25,0), oma=c(0,0,0,0))
+plot(zonation_priority,col=greys,legend=F,box=F,axes=F,zlim=c(0,1))
+  plot(PP.shp, add=T, lwd=0.5)
+dev.off()
+
+IsBecomes.AURIN <- matrix(c(0,0.20,1, 0.20,0.50,2, 0.50,0.75,3,0.75,0.90,4,0.90,1.00,5), ncol=3, byrow=TRUE)
+  aurin.raster <- reclassify(zonation_priority,IsBecomes.AURIN)
+
+png("aurin_raster.png",height=10,width=7,units="cm",res=300, bg="transparent")
+par(mar=c(0.25,1.5,0.25,0), oma=c(0,0,0,0))
+plot(aurin.raster,col=rev(gray(0:4/4)),legend=F,box=F,axes=F)
+  plot(MNW.shp,add=T,lwd=1,border="black")
+  plot(PP.shp, add=T, lwd=0.5)
+dev.off()
+
+```
+

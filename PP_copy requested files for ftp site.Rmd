@@ -1,0 +1,54 @@
+---
+title: "Package data for ftp site"
+author: "Amy Whitehead"
+date: "Monday, March 02, 2015"
+output: html_document
+---
+
+
+
+```{r setup}
+rm(list=ls())
+packages(raster)
+packages(maptools)
+packages(colorRamps)
+packages(fields)
+packages(reshape)
+packages(ggplot2)
+packages(RColorBrewer)
+
+  GDA94.50 <- CRS("+proj=utm +zone=50 +south +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs")
+  GDA94 <- CRS("+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs")
+
+# computer
+# computer <- "~"
+computer <- "//654cw-20990/Amy"
+
+# define paths for input and output files
+input_path <- paste0(computer,'/GIS_data/Perth-Peel/zonation/100m/')
+output_path <- paste0(computer,'/GIS_data/Perth-Peel/zonation/100m/PPSA/output/')
+
+ names <- as.vector(read.table(paste0(input_path,'ppsa.rank.spp'), header=F, sep='\t')[,6])
+```
+
+You can also embed plots, for example:
+
+```{r, echo=FALSE}
+
+requested.files <- gsub(" ","_",paste0(c("Calyptorhynchus banksii subsp. naso","Calyptorhynchus baudinii","Calyptorhynchus latirostris","Bettongia penicillata subsp. ogilbyi","Dasyurus geoffroii","Pseudocheirus occidentalis","Setonix brachyurus","Acacia anomala","Anthocercis gracilis","Caladenia huegelii","Conospermum undulatum","Diuris purdiei","Drakaea elastica","Eucalyptus argutifolia","Synaphea stenoloba","Tetraria australiensis"),collapse="|"))
+
+test <- names[grepl(requested.files,names)]
+
+file.copy(paste0(input_path,test),paste0(output_path,"Files for ftp site"))
+
+
+priority.map <- raster(paste0(output_path,"baseline_rank_20140909.CAZ_.rank.asc"))
+  writeRaster(priority.map,"UoM_unconstrained_prioritisation_FINAL.tif")
+
+setwd(paste0(output_path,"Files for ftp site"))
+files <- dir()
+file.rename(files,paste0("UoM_",files))
+
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.

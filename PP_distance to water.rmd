@@ -1,0 +1,31 @@
+Generate distance to water
+========================================================
+
+
+
+```{r load data}
+rm(list=ls())
+
+packages(raster)
+packages(rgdal)
+packages(sp)
+packages(maptools)
+
+computer <- "UM"
+
+if(computer == "UM") {
+  envi.directory <- "C:/Users/awhitehead/Documents/GIS_data/Perth-Peel/DEC/"
+  output.directory <- "C:/Users/awhitehead/Documents/GIS_data/Perth-Peel"
+  }
+
+minor_hydro <- readShapeLines(paste0(envi.directory,"hydro_minor.shp"))
+major_hydro <- readShapeLines(paste0(envi.directory,"hydro_major.shp"))
+wetlands <- readShapePoly(paste0(envi.directory,"DEC_GeomorphicWetlands_SwanCoastalPlain_20120930.shp"))
+```
+
+You can also embed plots, for example:
+
+```{r fig.width=7, fig.height=6}
+plot(cars)
+```
+

@@ -1,0 +1,161 @@
+---
+title: "Create zonation spp files"
+author: "Amy Whitehead"
+date: "Thursday, August 21, 2014"
+output: html_document
+---
+
+```{r setup}
+rm(list=ls())
+
+# computer <- "Z:/"
+# computer <- "~"
+computer <- "//654cw-20990/Amy"
+
+# define paths for input and output files
+input_path <- paste0(computer,'/GIS_data/Perth-Peel/zonation/100m/')
+
+zonation.spp <- d(weight=1.0, alpha=1.0, bqp.row=1.0, bqp.buffer=1.0, cell.removal=1.0)
+
+extend.PP <- FALSE
+
+# load horrenda table
+  protected.species <- read.csv(paste0(computer,"/GIS_data/Perth-Peel/species data/WA listed protected species.csv"))
+
+```
+
+```{r identify species}
+PP.sp <- dir(paste0(input_path,"PP/"),pattern=".tif$")
+  PP.sp <- PP.sp[!duplicated(gsub("SSI.","",PP.sp))] # remove SSI files for sp that have SDMs & SSI files
+
+
+IBRA.sp <- dir(paste0(input_path,"IBRA/"),pattern=".tif$")
+  IBRA.sp <- IBRA.sp[!grepl("\\.PA\\.",IBRA.sp)] # remove PA tifs
+  IBRA.sp <- IBRA.sp[!duplicated(gsub("SSI\\.","",IBRA.sp))] # remove SSI files for sp that have SDMs & SSI files
+  IBRA.sp <- IBRA.sp[!grepl("Pseudemydura_umbrina_SSI.IBRA.tif",IBRA.sp)] # remove western swamp tortoise records
+
+PP.only <- paste0("PP/",PP.sp[which(gsub("PP","",PP.sp) %in% gsub("IBRA","",IBRA.sp)==FALSE)])
+
+# hack to remove missing species - need to fix clipping files properly
+missing.sp <- c("Acacia_semitrullata","Adiantum_capillus-veneris","Anous_stolidus","Anous_tenuirostris_subsp._melanops","Ardenna_carneipes","Banksia_pteridifolia_subsp._vernalis","Calonectris_leucomelas","Halobaena_caerulea","Larus_novaehollandiae","Macronectes_halli","Pelamis_platurus","Potorous_gilbertii","Puffinus_assimilis","Sterna_bergii","Sterna_caspia","Sterna_dougallii","Templetonia_drummondii","Thysanotus_anceps")
+
+# remove species that need to be ignored
+ignore.sp <- append(missing.sp,gsub(" ","_",protected.species$Scientific.Name[protected.species$ignore=="Y"]))
+
+ PP.sp <- PP.sp[which(gsub("_PP.tif|_SSI.PP.tif","",PP.sp) %in% ignore.sp==FALSE)]
+  IBRA.sp <- IBRA.sp[which(gsub("_IBRA.tif|_SSI.IBRA.tif","",IBRA.sp) %in% ignore.sp==FALSE)]
+
+
+PP.sp <- paste0("PP/",PP.sp)
+IBRA.sp <- paste0("ibra/",IBRA.sp)
+```
+
+```{r extend rasters only in PP}
+
+if(extend.PP == TRUE){
+  
+ibra.clipping.mask <- raster(paste0(computer,"/GIS_data/Perth-Peel/mask files/ibra.clipping.mask.tif"))
+ibra.pa.clipping.mask <- raster(paste0(computer,"/GIS_data/Perth-Peel/mask files/ibra.pa.clipping.mask.tif"))
+  
+  for(i in seq(PP.only)){
+    r <- raster(paste0(input_path,PP.only[i]))
+      r <- extend(r,ibra.clipping.mask)
+    writeRaster(r,paste0(input_path,"ibra/",gsub("_PP","_IBRA",names(r)),".tif"),overwrite=T,dataType='INT2U')
+    r <- mask(r,ibra.pa.clipping.mask)
+    writeRaster(r,paste0(input_path,"ibra/",gsub("_PP","_IBRA.PA",names(r)),".tif"),overwrite=T,dataType='INT2U')
+    cat(names(r),"\n")
+  }
+  
+}
+
+```
+
+
+```{r unweighted zonation spp files}
+# Features only within PP
+pp.spp <- d(zonation.spp, species = PP.sp)
+
+# Features across whole IBRA, including those only in PP
+ibra.spp <- d(zonation.spp, species = IBRA.sp)
+
+# Features across whole IBRA, including those only in PP
+ibra.pa.spp <- d(zonation.spp, species = gsub("\\.tif",".PA.tif",IBRA.sp))
+  
+ write.table(pp.spp,paste0(input_path,"ppsa.spp"),sep="\t",row.names=FALSE, col.names=FALSE)
+ write.table(ibra.spp,paste0(input_path,"ibra.spp"),sep="\t",row.names=FALSE, col.names=FALSE)
+ write.table(ibra.pa.spp,paste0(input_path,"ibra.pa.spp"),sep="\t",row.names=FALSE, col.names=FALSE)
+
+```
+
+```{r weighted zonation spp files}
+weighted.species <- as.character(gsub("_"," ",gsub("IBRA\\/|\\_IBRA|\\.IBRA|\\_SSI|PP\\/|\\_PP|\\.PP|\\.tif","",ibra.spp$species,ignore.case = T)))
+
+pp.threat.spp <- pp.spp
+pp.rank.spp <- pp.spp
+
+ibra.threat.spp <- ibra.spp
+ibra.rank.spp <- ibra.spp
+
+ibra.pa.threat.spp <- ibra.pa.spp
+ibra.pa.rank.spp <- ibra.pa.spp
+
+  for(w in seq(weighted.species)){
+    try({
+      rank <- protected.species$rank_DoE[protected.species$Scientific.Name==weighted.species[w]]
+      threat <- protected.species$weight_status[protected.species$Scientific.Name==weighted.species[w]]
+      
+      pp.rank.spp$weight[as.character(gsub("_"," ",gsub("IBRA\\/|\\_IBRA|\\.IBRA|\\_SSI|PP\\/|\\_PP|\\.PP|\\.tif","",pp.spp$species,ignore.case = T))) == weighted.species[w]] <- rank
+      ibra.rank.spp$weight[as.character(gsub("_"," ",gsub("ibra\\/|IBRA\\/|\\_IBRA|\\.IBRA|\\_SSI|PP\\/|\\_PP|\\.PP|\\.tif","",ibra.spp$species,ignore.case = T))) == weighted.species[w]] <- rank
+      ibra.pa.rank.spp$weight[as.character(gsub("_"," ",gsub("ibra\\/|IBRA\\/|\\_IBRA|\\.IBRA|\\_SSI|PP\\/|\\_PP|\\.PP|\\.tif|\\.PA","",ibra.pa.spp$species,ignore.case = T))) == weighted.species[w]] <- rank
+      
+      pp.threat.spp$weight[as.character(gsub("_"," ",gsub("IBRA\\/|\\_IBRA|\\.IBRA|\\_SSI|PP\\/|\\_PP|\\.PP|\\.tif","",pp.spp$species,ignore.case = T))) == weighted.species[w]] <- threat
+      ibra.threat.spp$weight[as.character(gsub("_"," ",gsub("ibra\\/|IBRA\\/|\\_IBRA|\\.IBRA|\\_SSI|PP\\/|\\_PP|\\.PP|\\.tif","",ibra.spp$species,ignore.case = T))) == weighted.species[w]] <- threat
+      ibra.pa.threat.spp$weight[as.character(gsub("_"," ",gsub("ibra\\/|IBRA\\/|\\_IBRA|\\.IBRA|\\_SSI|PP\\/|\\_PP|\\.PP|\\.tif|\\.PA","",ibra.pa.spp$species,ignore.case = T))) == weighted.species[w]] <- threat
+      
+      })
+    }
+
+ write.table(pp.rank.spp,paste0(input_path,"ppsa.rank.spp"),sep="\t",row.names=FALSE, col.names=FALSE)
+ write.table(ibra.rank.spp,paste0(input_path,"ibra.rank.spp"),sep="\t",row.names=FALSE, col.names=FALSE)
+ write.table(ibra.pa.rank.spp,paste0(input_path,"ibra.pa.rank.spp"),sep="\t",row.names=FALSE, col.names=FALSE)
+
+ write.table(pp.threat.spp,paste0(input_path,"ppsa.threat.spp"),sep="\t",row.names=FALSE, col.names=FALSE)
+ write.table(ibra.threat.spp,paste0(input_path,"ibra.threat.spp"),sep="\t",row.names=FALSE, col.names=FALSE)
+ write.table(ibra.pa.threat.spp,paste0(input_path,"ibra.pa.threat.spp"),sep="\t",row.names=FALSE, col.names=FALSE)
+
+```
+
+
+```{r remove wetland & lake layers for CL analysis}
+remove.water <- c("Forrestdale_and_Thomsons_Lakes","EPA2_EPP","EPA2_CCW","Becher_Point_Wetlands","Peel-Yalgorup_System")
+
+pp.spp <- pp.spp[!grepl(paste(remove.water,collapse="|"),pp.spp$species),]
+ibra.spp <- ibra.spp[!grepl(paste(remove.water,collapse="|"),ibra.spp$species),]
+ibra.pa.spp <- ibra.pa.spp[!grepl(paste(remove.water,collapse="|"),ibra.pa.spp$species),]
+
+ write.table(pp.spp,paste0(input_path,"cl.ppsa.spp"),sep="\t",row.names=FALSE, col.names=FALSE)
+ write.table(ibra.spp,paste0(input_path,"cl.ibra.spp"),sep="\t",row.names=FALSE, col.names=FALSE)
+ write.table(ibra.pa.spp,paste0(input_path,"cl.ibra.pa.spp"),sep="\t",row.names=FALSE, col.names=FALSE)
+
+pp.rank.spp <- pp.rank.spp[!grepl(paste(remove.water,collapse="|"),pp.rank.spp$species),]
+ibra.rank.spp <- ibra.rank.spp[!grepl(paste(remove.water,collapse="|"),ibra.rank.spp$species),]
+ibra.pa.rank.spp <- ibra.pa.rank.spp[!grepl(paste(remove.water,collapse="|"),ibra.pa.rank.spp$species),]
+
+write.table(pp.rank.spp,paste0(input_path,"cl.ppsa.rank.spp"),sep="\t",row.names=FALSE, col.names=FALSE)
+write.table(ibra.rank.spp,paste0(input_path,"cl.ibra.rank.spp"),sep="\t",row.names=FALSE, col.names=FALSE)
+write.table(ibra.pa.rank.spp,paste0(input_path,"cl.ibra.pa.rank.spp"),sep="\t",row.names=FALSE, col.names=FALSE)
+```
+
+
+```{r groups file}
+all.sp <- gsub("_"," ",gsub("PP\\/|\\_SSI|\\_PP|\\.PP|\\.tif","",PP.sp))
+mnes.list <- all.sp[which(all.sp %in% protected.species$Scientific.Name[protected.species$mnes == TRUE])]
+
+groups.file <- d(species=all.sp, output.group=1,condition=-1,retention.group=-1,retention.mode=-1,local.edge.correction=-1)
+
+# MNES species == Group 2
+groups.file$output.group[which(groups.file$species %in% mnes.list)] <- 2
+
+write.table(groups.file, paste0(computer,"/GIS_data/Perth-Peel/zonation/100m/ppsa_groups.txt"),sep="\t",row.names=FALSE, col.names=FALSE)
+
+```

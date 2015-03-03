@@ -1,0 +1,52 @@
+REclassify zonation output for AURIN
+========================================================
+
+
+
+```{r load rasters}
+  rm(list=ls())
+  
+  packages(raster)
+  packages(rgdal)
+  packages(maptools)
+
+  input.dir <- "~/GIS_data/Perth-Peel/zonation/100m/output_files/scenarios/"
+  output.dir <- "~/GIS_data/Perth-Peel/zonation/100m/output_files/figures"
+
+  asc.files <- dir(input.dir, pattern=".rank.asc$")
+
+  scenario1 <- raster(paste0(input.dir,"scenario01_unconstrained.rank.asc"))
+
+  PP.mask <- readShapePoly("C:/Users/awhitehead/Documents/GIS_data/Perth-Peel/DOP/DoP_StrategicAssessmentStudyBoundary_Extended_20121004.shp")
+  
+```
+
+You can also embed plots, for example:
+
+```{r reclassify raster AURIN}
+
+  IsBecomes.AURIN <- matrix(c(0,0.20,1, 0.20,0.50,2, 0.50,0.75,3,0.75,0.90,4,0.90,1.00,5), ncol=3, byrow=TRUE)
+  r <- reclassify(scenario1,IsBecomes.AURIN)
+
+writeRaster(r,paste0("~/GIS_data/Perth-Peel/zonation/100m/output_files/DRAFT_unconstrained_zonation_output", format(Sys.time(),format="%d_%B_%Y") ), format="GTiff", overwrite=T)
+
+```
+
+```{r}
+IsBecomes.zonation <- matrix(c(0,0.20,1, 0.20,0.50,2, 0.50,0.75,3,0.75,0.90,4,0.90,0.95,5,0.95,0.98,6,0.98,1.00,7), ncol=3, byrow=TRUE)
+  r <- reclassify(scenario1,IsBecomes.zonation)
+
+leg.labels <- c("Low","","","","","","","High")
+colours <- c("black","dark blue","blue","yellow","magenta","dark red", "red")
+
+region <- list("sp.polygons", PP.mask)
+region.layout <- list(region)
+spplot(r, sp.layout=region.layout)
+
+spplot(r, col=colours, main=names(r), bty="n",axes=F)
+plot(add=T,PP.mask )
+plot(r, add=T, legend.only=T, col=colours, axis.args=list(at=c(0.01,0.2,0.5,0.75,0.9,0.95,0.98,1)*7,labels=leg.labels, cex.axis=0.6,tck=0), legend.args=list(text='Conservation priority', side=4, font=2, line=2.5, cex=0.8))
+
+```
+
+

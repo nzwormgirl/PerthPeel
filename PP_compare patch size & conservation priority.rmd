@@ -1,0 +1,162 @@
+
+```{r setup}
+rm(list=ls())
+
+library(raster)
+library(lattice)
+packages(gridExtra)
+library(rgdal)
+
+computer <- "~" #My computer
+#computer <- "Z:/Amy" #Super computer
+computer <- "//654cw-20990/Amy"
+
+# define paths for input and output files
+input_path <- paste0(computer,'/GIS_data/Perth-Peel/')
+output_path <- paste0(computer,'/GIS_data/Perth-Peel/')
+
+# set projections
+  GDA94.50 <- CRS("+proj=utm +zone=56 +south +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs")
+  GDA94 <- CRS("+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs")
+
+ create.patch.rasters <- TRUE
+```
+
+```{r chunkFunctions, warning=FALSE,message=FALSE}
+#function to make a circular weiPPts matrix of given radius and resolution
+#NB radius must be an even multiple of res!
+make_circ_filter<-function(radius, res){
+  require(raster)
+  circ_filter<-matrix(NA, nrow=1+(2*radius/res), ncol=1+(2*radius/res))
+  dimnames(circ_filter)[[1]]<-seq(-radius, radius, by=res)
+  dimnames(circ_filter)[[2]]<-seq(-radius, radius, by=res)
+  sweeper<-function(mat){
+    for(row in 1:nrow(mat)){
+      for(col in 1:ncol(mat)){
+        dist<-sqrt((as.numeric(dimnames(mat)[[1]])[row])^2 +
+          (as.numeric(dimnames(mat)[[1]])[col])^2)
+        if(dist<=radius) {mat[row, col]<-1}
+      }
+    }
+    return(mat)
+  }
+out<-sweeper(circ_filter)
+return(out)
+}
+
+# function to sum the values in the circular filter and divides by the number of cells 
+##(removing all cells with NA values)
+percent.cover <- function(x){ sum(x,na.rm=T)/sum(cf, na.rm=T)*100}
+
+# function to convert a raster to presence-absence data based on a threshold
+  # set threshold to zero to create a mask of the area
+presence.absence <- function(x) { x[x<threshold] <- 0
+                     x[x>=threshold] <- 1
+                     return(x) }
+
+```
+
+```{r Analysis_function, message=FALSE}
+
+# open the selected sample file
+  generate.pc.ascii <- function (file.name, mask,sample.raster) {
+#     sample.raster <- raster(filename)
+    
+    cat("\n","Loaded",as.character(file.name))
+    
+    sample.raster <- resample(sample.raster,mask, method="bilinear")
+
+  # calculate the percentage cover within the circular filter
+    cat("\n","Calculating % cover of",as.character(file.name)," within",radius,"m radius")
+    r_filt <- mask(focal(sample.raster, w=cf, fun=percent.cover,na.rm=T),mask)
+  
+    par(mfrow=c(1,2))
+    plot(sample.raster, main=file.name, axes=F) #original data
+    plot(r_filt, main=paste0(radius,"m ",file.name), axes=F) #filtered data
+    
+    file.name <- gsub(" ","_",file.name)
+  
+    writeRaster(r_filt, paste0(output_path,"mask files/",file.name,".",radius,".tif"), overwrite=TRUE)
+    cat("\n","Saved",paste0(output_path,"mask files/",file.name,radius,".tif"),"\n","\n")
+  
+  return(r_filt)
+  
+  gc()
+  }
+```
+
+
+```{r create patch size raster}
+if(create.patch.rasters ==TRUE){
+  PP.mask <- raster(paste0(output_path,"mask files/perth.mask.tif"))
+      PP.mask[!is.na(PP.mask)] <- 1
+  
+    PP.clipping.mask <- raster(paste0(output_path,"mask files/perth.clipping.mask.tif"))
+      PP.clipping.mask[is.na(PP.clipping.mask)] <- 0
+      PP.clipping.mask <- mask(PP.clipping.mask,PP.mask)
+  
+    resolution <- xres(PP.mask)
+  
+  ## Generate ascii files with percentage cover within 500 m radius
+#     radii <- resolution*seq(2,5,by=1)  
+    radii <- resolution*seq(10,50,by=10)   
+
+  for(i in seq(radii)){
+    # set the circular filter
+      radius <- radii[i]  
+      cf<-make_circ_filter(radius, resolution)
+        
+      assign(paste0("patch.size.",radius), generate.pc.ascii("PP_patch.size",PP.mask,PP.clipping.mask))
+    }
+}
+
+```
+
+
+```{r PPSA output}
+# import PP rank file
+  PP.rank <- raster(paste0(output_path,"zonation/100m/PPSA/output/baseline_threat_20140909.CAZ_.rank.asc"))
+    PP.rank.values <- extract(PP.rank,extent(PP.rank))
+
+###how did I make these?
+# import patch size files
+  patch.size <- dir(paste0(output_path,"mask files/"),"PP_patch.size")
+
+# function for labelling lattice plots
+  pgfun <- function(mark) function(n) grid.text(label = mark, just = c("left", "center"), x = unit(0.05, "npc"), y = unit(0.975, "npc"))
+ 
+  for(i in seq(patch.size)){
+    ps <- mask(raster(paste0(output_path,"mask files/",patch.size[i])),PP.rank)
+        ps.values <- extract(ps,extent(PP.rank))
+#     assign(paste0(names(ps),".values"),ps.values)
+    
+    ps.class <- cut(ps.values, seq(0,100,by=10), include.lowest = TRUE)
+      assign(paste0(names(ps),".class"),ps.class)
+     
+    bwplot(PP.rank.values~ps.class,ylab="Conservation priority",xlab="% remnant vegetation",page = pgfun(names(ps)))
+ rm(ps,ps.class,ps.values)
+    
+  }
+
+
+pdf(paste0(output_path,"zonation/100m/PPSA/output/patch size - conservation priority.pdf"),paper="a4r")
+  bwplot(PP.rank.values~PP_patch.size.200.class,ylab="Conservation priority",xlab="% remnant vegetation",page = pgfun("200m buffer"))
+  bwplot(PP.rank.values~PP_patch.size.300.class,ylab="Conservation priority",xlab="% remnant vegetation",page = pgfun("300m buffer"))
+  bwplot(PP.rank.values~PP_patch.size.400.class,ylab="Conservation priority",xlab="% remnant vegetation",page = pgfun("400m buffer"))
+  bwplot(PP.rank.values~PP_patch.size.500.class,ylab="Conservation priority",xlab="% remnant vegetation",page = pgfun("500m buffer"))
+  bwplot(PP.rank.values~PP_patch.size.1000.class,ylab="Conservation priority",xlab="% remnant vegetation",page = pgfun("1000m buffer"))
+  bwplot(PP.rank.values~PP_patch.size.2000.class,ylab="Conservation priority",xlab="% remnant vegetation",page = pgfun("2000m buffer"))
+  bwplot(PP.rank.values~PP_patch.size.3000.class,ylab="Conservation priority",xlab="% remnant vegetation",page = pgfun("3000m buffer"))
+  bwplot(PP.rank.values~PP_patch.size.4000.class,ylab="Conservation priority",xlab="% remnant vegetation",page = pgfun("4000m buffer"))
+bwplot(PP.rank.values~PP_patch.size.5000.class,ylab="Conservation priority",xlab="% remnant vegetation",page = pgfun("5000m buffer"))  
+dev.off()
+
+png(paste0(output_path,"zonation/100m/PPSA/output/patchsize.1000_conservationpriority.png"),res=300,bg="transparent",width=15,height=10,units="cm",pointsize=12)
+  bwplot(PP.rank.values~PP_patch.size.1000.class,pch="|",rect=list(border="black"),ylab="Conservation priority",xlab="Native vegetation cover within 1km buffer (%)",scales=list(x=list(at= seq(0.5,10.5,by=1), labels=format(as.character(seq(0,100,by=10))))),page = pgfun("")) 
+dev.off()
+
+tiff(paste0(output_path,"zonation/100m/PPSA/output/patchsize.4000_conservationpriority.tif"),res=300,compression="lzw",width=15,height=10,units="cm",pointsize=10)
+  bwplot(PP.rank.values~PP_patch.size.4000.class,pch="|",ylab="Conservation priority",xlab="Native vegetation cover within 4km buffer (%)",scales=list(x=list(at= seq(0.5,10.5,by=1), labels=format(as.character(seq(0,100,by=10))))),page = pgfun("")) 
+dev.off()
+
+```

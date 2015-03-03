@@ -1,0 +1,147 @@
+---
+title: "Species richness based on maxent models"
+author: "Amy Whitehead"
+date: "Tuesday, January 13, 2015"
+output: html_document
+---
+
+
+```{r setup}
+rm(list=ls())
+library(raster)
+library(maptools)
+library(fields)
+
+computer <- "//654cw-20990/Amy/"
+# computer <- "Z:/Amy/"
+#computer <- "~/"
+
+model <- "Model3"
+
+GDA94.50 <- CRS("+proj=utm +zone=50 +south +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs")
+  GDA94 <- CRS("+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs")
+
+pp.shp <- readShapePoly(paste0(computer,"/GIS_data/Perth-Peel/environmental data/100m/scenario data/DoP/DoP_StrategicAssessmentStudyBoundary_Extended_20121004.shp"))
+  ibra.shp <- readShapePoly(paste0(computer,"/GIS_data/Perth-Peel/environmental data/PP_IBRA.shp"))
+```
+
+
+```{r visulise modelled biodiversity patterns}
+
+ibra.clipping.mask <- raster(paste0(computer,"GIS_data/Perth-Peel/mask files/ibra.clipping.mask.tif"))
+
+maxent.dir <- paste0(computer,"GIS_data/Perth-Peel/Maxent_files/environmental_data/100m/ibra/output/")
+zonation.dir <- paste0(computer,"GIS_data/Perth-Peel/zonation/100m/PP/")
+# 
+# taxa <- c("plants","birds","mammals","reptiles","invertebrates")
+# 
+# for(i in 1:5){
+#   cat("Summing across",taxa[i],"\n")
+#   asc.files <- stack(dir(paste0(maxent.dir,taxa[i],"/",model,"/"),pattern="_avg.asc$",full.names=T))
+#   if (i==1){
+#     summed.values <- sum(asc.files)
+#   } else summed.values <- summed.values + sum(asc.files)
+# }
+# 
+# 
+# test <- summed.values 
+# projection(test) <- GDA94.50
+# 
+# test <- mask(resample(test, ibra.clipping.mask),ibra.clipping.mask, filename=paste0(maxent.dir,"estimated_richness.tif"),overwrite=T)
+# #   test[is.na(test)] <- -1
+# #   test <- mask(test,ibra.shp)
+
+richness <- raster(paste0(maxent.dir,"estimated_richness.tif"))
+```
+
+
+```{r plot}
+library(RColorBrewer)
+maxent.dir <- paste0(computer,"/GIS_data/Perth-Peel/Maxent_files/environmental_data/100m/ibra/output/")
+
+# uncertainties <- stack(dir(maxent.dir,pattern="mean.uncertainty.tif",full.names=T,recursive=T))
+#   extent(uncertainties) <- extent(ibra.clipping.mask) 
+#   uncertainties<- mask(uncertainties,ibra.clipping.mask)
+# range.cv <- c(min(getValues(uncertainties),na.rm=T),max(getValues(uncertainties),na.rm=T))
+# 
+# 
+# mean.uncertainty <- mask(resample(mean(uncertainties),ibra.clipping.mask),ibra.clipping.mask,filename=paste0(maxent.dir,"mean.uncertainty.tif"),overwrite=T)
+
+mean.uncertainty <- raster(paste0(maxent.dir,"mean.uncertainty.tif"))
+
+mean.range.cv <- cellStats(mean.uncertainty,range)
+
+png(paste0(maxent.dir,"richness & uncertainty.png"),width=20,height=15,units="cm",res=300,pointsize=12,bg="transparent")
+  par(mfrow=c(1,2),mar=c(0,0,2,0),oma=c(0.5,0,0.2,2),xpd=NA)
+  plot(ibra.shp,col="lightgrey",axes=F)  
+    plot(richness,axes=F,box=F,legend=F,col=brewer.pal(9,"YlGnBu"),add=T)
+    plot(pp.shp, add=T)
+    plot(ibra.shp, add=T)
+mtext("A)",side=3,line=0,cex=1,adj=0.05,font=2)
+image.plot(test,legend.only=TRUE,zlim=c(0,30),nlevel=100, col=brewer.pal(9,"YlGnBu"),axis.args=list(at=c(0,30), labels=c("Low","High"), cex.axis=0.7,adj=0.5),legend.args=list(text='Relative richness', side=2, font=2, line=0.75, cex=0.7),legend.width=1,legend.shrink=0.5)
+
+plot(ibra.shp,col="lightgrey",axes=F)
+plot(mean.uncertainty,axes=F,add=T,legend=F,col=brewer.pal(9,"OrRd"))
+    image.plot(legend.only=TRUE,zlim=mean.range.cv, nlevel=100, col=brewer.pal(9,"OrRd"),axis.args=list(at=mean.range.cv, labels=c(paste0("Low","\n","(CV=",round(mean.range.cv[1]/10000,2),")"),paste0("High","\n","(CV=",round(mean.range.cv[2]/10000,2),")")), cex.axis=0.7,adj=0.5),legend.args=list(text='Predictive uncertainty', side=2, font=2, line=0.75, cex=0.7),legend.width=1,legend.shrink=0.5)
+    plot(pp.shp, add=T)
+    plot(ibra.shp, add=T)
+mtext("B)",side=3,line=0,cex=1,adj=0.05,font=2)
+
+dev.off()
+
+
+PPSA.mean.uncertainty <- mask(crop(mean.uncertainty, PP.clipping.mask), PP.clipping.mask)
+PPSA.mean.range.cv <- cellStats(PPSA.mean.uncertainty,range)
+```
+
+```{r spatial uncertainty plots}
+
+
+maxent.dir <- paste0(computer,"/GIS_data/Perth-Peel/Maxent_files/environmental_data/100m/ibra/output/")
+
+uncertainties <- stack(dir(maxent.dir,pattern="mean.uncertainty.tif",full.names=T,recursive=T))
+  extent(uncertainties) <- extent(clipping.mask) 
+  uncertainties<- mask(uncertainties,clipping.mask)
+range.cv <- c(min(getValues(uncertainties),na.rm=T),max(getValues(uncertainties),na.rm=T))
+
+
+mean.uncertainty <- mask(resample(mean(uncertainties),ibra.clipping.mask),ibra.clipping.mask)
+
+simpleCap <- function(x) {
+  s <- strsplit(x, " ")[[1]]
+  paste(toupper(substring(s, 1,1)), substring(s, 2),
+      sep="", collapse=" ")
+}
+
+png(paste0(maxent.dir,"uncertainties by taxa.png"),width=20,height=7.5,units="cm",res=300,pointsize=12,bg="transparent")
+  par(mfrow=c(1,nlayers(uncertainties)),mar=c(6,0,3,0),oma=c(0,0,0,0))
+  
+  for(i in 1:nlayers(uncertainties)){
+    Taxa <- gsub("Perth.Peel|\\.|\\_|mean|uncertainty","",names(uncertainties[[i]]))
+    plot(uncertainties[[i]],axes=F,box=F,legend=F,col=rev(grey((1:100)/100)),zlim=range.cv,main=simpleCap(Taxa))
+    mtext(paste0("(N = ",nrow(AUC[AUC$Taxa==Taxa,]),")"),side=3,line=-0.5,cex=0.7)
+    if(i==3) image.plot(legend.only=TRUE,horizontal=TRUE,zlim=range.cv, nlevel=100, col=rev(grey((1:100)/100)),axis.args=list(at=range.cv, labels=c(paste0("Low","\n","(CV=",round(range.cv[1]/10000,2),")"),paste0("High","\n","(CV=",round(range.cv[2]/10000,2),")")), cex.axis=0.7),legend.args=list(text='Uncertainty', side=1, font=2, line=1.5, cex=0.7),legend.width=0.55)
+    
+  }
+dev.off()
+
+
+all.SDM.CV <- stack(invertebrates_SDM.CV,mammals_SDM.CV,plants_SDM.CV,birds_SDM.CV,reptiles_SDM.CV)
+mean.uncertainty <- mean(all.SDM.CV)
+  extent(mean.uncertainty) <- extent(clipping.mask)
+  mean.uncertainty <- mask(mean.uncertainty,clipping.mask)
+mean.range.cv <- cellStats(mean.uncertainty,range)
+mean.uncertainty.summary <- cellStats(mean.uncertainty,summary)/10000
+
+png(paste0(maxent.dir,"mean uncertainties.png"),width=15,height=20,units="cm",res=300,pointsize=12,bg="transparent")
+  par(mfrow=c(1,1),mar=c(6,0,3,0),oma=c(0,0,0,0))
+  
+  plot(mean.uncertainty,axes=F,box=F,legend=F,col=rev(grey((1:90)/100)),zlim=mean.range.cv)
+    image.plot(legend.only=TRUE,zlim=range.cv, nlevel=100, col=rev(grey((1:90)/100)),axis.args=list(at=range.cv, labels=c(paste0("Low","\n","(CV=",round(mean.range.cv[1]/10000,2),")"),paste0("High","\n","(CV=",round(mean.range.cv[2]/10000,2),")")), cex.axis=0.7,adj=0.5),legend.args=list(text='Uncertainty', side=3, font=2, line=1.5, cex=0.7),legend.width=0.55,legend.shrink=0.5)
+    plot(pp.shp, add=T)
+    plot(ibra.shp, add=T)
+    
+dev.off()
+
+
+```

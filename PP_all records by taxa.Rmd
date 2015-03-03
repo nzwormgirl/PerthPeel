@@ -1,0 +1,119 @@
+Create sampling bias layer 
+========================================================
+
+Use maxent data to create a sampling bias layer using the Moore neighbourhood
+
+
+
+```{r}
+setwd("C:/Users/awhitehead/Documents/GIS_data/Perth-Peel/species data")
+packages(rgdal)
+packages(maptools)
+packages(raster)
+
+rbind.match.columns <- function (input1,input2) {
+    n.input1 <- ncol(input1)
+    n.input2 <- ncol(input2)
+    
+    if(n.input2 < n.input1) {
+      TF.names <- which(names(input2) %in% names(input1))
+      column.names <- names(input2[,TF.names])
+      } else {
+        TF.names <- which(names(input1) %in% names(input2))
+        column.names <- names(input1[,TF.names])
+      }
+    
+    output <- rbind(input1[,column.names], input2[,column.names])
+  }
+
+combine.records <- function (NC.records, SB.records) {
+  tryCatch({
+            rbind.match.columns(NC.records,SB.records)
+            }, error = function(err){
+              if(is.null(NC.records)==TRUE & is.null(SB.records)==FALSE){
+                return(SB.records)
+              } else if(is.null(SB.records)==TRUE & is.null(NC.records)==FALSE){
+                return(NC.records)
+              } else cat("")
+            })
+  }
+
+
+# the taxanomic blocks that the data were downloaded in
+taxa <- c("mammals", "amphibians", "plants", "reptiles","birds","insects")
+
+ pp.ibra <- raster("~/GIS_data/Perth-Peel/environmental data/pp_ibra_mask.tif")
+  pp.ibra[!is.na(pp.ibra)] <- 0
+
+# loop through each taxonomic group and extract records based on the threatened species list
+for (k in seq(taxa)){
+  cat("\n", "Extracting records for",taxa[k],"from ALA", "\n")  
+  
+  tryCatch( {
+    SCP.input <- read.csv(paste0("ALA downloads/SCP ",taxa[k],".csv"))
+    JF.input <- read.csv(paste0("ALA downloads/JF ",taxa[k],".csv"))
+    
+    P.input <- read.csv(paste0("NatureMap downloads/Perth ",taxa[k],".csv"))
+    colnames(P.input)[1] <- "Scientific.Name"
+  NJF.input <- read.csv(paste0("NatureMap downloads/NJF ",taxa[k],".csv"))
+    colnames(NJF.input)[1] <- "Scientific.Name"
+  DP.input <- read.csv(paste0("NatureMap downloads/DP ",taxa[k],".csv"))
+    colnames(DP.input)[1] <- "Scientific.Name"
+    }, warning = function(e) {cat("")})
+    
+   if(taxa[k]=="insects") {
+     JF.input <- read.csv(paste0("ALA downloads/JF arthropods.csv"))
+    
+    P.input <- read.csv(paste0("NatureMap downloads/Perth invertebrates.csv"))
+    colnames(P.input)[1] <- "Scientific.Name"
+  NJF.input <- read.csv(paste0("NatureMap downloads/NJF invertebrates.csv"))
+    colnames(NJF.input)[1] <- "Scientific.Name"
+  DP.input <- read.csv(paste0("NatureMap downloads/DP invertebrates.csv"))
+    colnames(DP.input)[1] <- "Scientific.Name"
+   }
+
+     
+      all.records.ALA <- combine.records(SCP.input, JF.input)
+        all.records.ALA <- all.records.ALA[,c("Scientific.Name", "Latitude...processed","Longitude...processed")]
+        colnames(all.records.ALA) <- c("Species", "Latitude", "Longitude")
+      all.records.NM <- combine.records(P.input, NJF.input)
+        all.records.NM <- combine.records(all.records.NM, DP.input)
+        all.records.NM <- all.records.NM[,c("Scientific.Name", "LATITUDE","LONGITUDE")]
+        colnames(all.records.NM) <- c("Species", "Latitude", "Longitude")
+  all.records <- combine.records(all.records.ALA,all.records.NM)
+  coordinates(all.records) <- c("Longitude","Latitude")
+     proj4string(all.records) <- "+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs"
+
+  # transform to new projection
+  all.records <- spTransform(all.records, CRS("+proj=utm +zone=50 +south +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs"))
+  #all.records <- as.data.frame(all.records)
+   # names(all.records)[2:3] <- c("easting","northing")
+  
+        cell <- cellFromXY(pp.ibra,all.records)
+      all.records <- all.records[!duplicated(cell),]
+ 
+  filename <- paste0("all_records_",taxa[k])
+  
+  writePointsShape(all.records,filename )
+  assign(filename, all.records) 
+  SCP.input <-NULL;JF.input<-NULL;DP.input<-NULL;P.input<-NULL;NJF.input<-NULL
+    rm(all.records,all.records.NM,all.records.ALA)
+  }
+
+```
+
+```{r normalise sampling bias}
+setwd("C:/Users/awhitehead/Documents/GIS_data/Perth-Peel/environmental data/100m/ibra/sampling bias")
+
+(sb.files <- dir(pattern=".tif$", recursive=T, full.names=F))
+sb.rasters <- lapply(sb.files,raster)
+
+for(i in 1:length(sb.files)){
+  r <- sb.rasters[[i]]
+  r <- (r - minValue(r))/(maxValue(r)-minValue(r))+0.05
+  plot(r,main=names(r))
+  writeRaster(r,paste0(names(r),".tif"),overwrite=T)
+  
+}
+
+```

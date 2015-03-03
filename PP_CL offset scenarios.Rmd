@@ -1,0 +1,488 @@
+---
+title: "Create mask files for CL offsets paper"
+author: "Amy Whitehead"
+date: "Wednesday, August 20, 2014"
+output: html_document
+---
+
+This is based on PP_create development scenario rasters.Rmd and uses the outputs from these scenarios to create the offsets mask files
+
+
+```{r setup_functions, echo=FALSE}
+# set Rmarkdown global chunk options
+packages(knitr)
+opts_chunk$set(comment=NA, echo=FALSE, eval=TRUE, message=FALSE, warning=FALSE, message=FALSE, cache=TRUE,fig.width=6, fig.height=6)
+
+#load packages and set working directory
+rm(list=ls())
+start.time <- proc.time()
+packages(raster)
+packages(rgdal)
+packages(maptools)
+packages(rgeos)
+
+# set directories
+envi.directory <- "~/GIS_data/Perth-Peel/"
+output.directory <- "~/GIS_data/Perth-Peel/zonation/100m/scenarios/"
+setwd(output.directory)
+
+source("C:/Users/awhitehead/Dropbox/Random R code/shp2raster.R")
+
+# set projections
+GDA94 <- CRS("+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs")
+GDA94.50 <- CRS("+proj=utm +zone=50 +south +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs")
+
+# load mask files
+perth <- raster("~/GIS_data/Perth-Peel/mask files/perth.mask.tif")
+  perth[!is.na(perth)] <- 2
+clipping.mask <- raster("~/GIS_data/Perth-Peel/mask files/perth.clipping.mask.tif")
+  clipping.mask[!is.na(clipping.mask)] <- 2
+
+perth.shp <- readShapePoly(paste0(envi.directory,"DOP/DoP_StrategicAssessmentStudyBoundary_Extended_20121004.shp"),proj4=GDA94.50)
+
+ibra <- raster("~/GIS_data/Perth-Peel/environmental data/pp_ibra_mask.tif")
+   ibra[!is.na(ibra)] <- 2
+ibra.clipping.mask <- raster("~/GIS_data/Perth-Peel/mask files/ibra.clipping.mask.tif")
+  ibra.clipping.mask[!is.na(ibra.clipping.mask)] <- 2
+
+
+```
+
+
+##Protected Areas
+The protected area layer is divided into three levels based on protection security.  Where sites are represented under multiple protection categories, we have assumed the strongest level of assigned protection.  
+*Level 1* protected areas have the highest level of protection and form the DPaW managed IUCN I-IV conservation reserve network. These include: nature reserves (IUCN category I); national parks and conservation parks (IUCN category II); natural monument or features (IUCN category III); and habitat/species management area (IUCN category IV). BushForever sites that are listed under Section 16 of the CALM Act 1984 are also included in this protection category. Level 1 protected areas cover almost 100,000 ha within the strategic assessment region.  
+*Level 2* protected areas include State forests listed under the CALM Act 1984 (IUCN category VI) and are recognised as a protected area with sustainable use of natural resources.  Priority 2 protected areas are the largest protected area category in the strategic assessment region, covering approximately 250,000 ha.  
+*Level 3* protected areas are regions that have a low level of formal protection for conservation purposes but are typically thought of as having some conservation value. These include DPaW Managed Lands that have no IUCN status, regional open spaces and parks, recreational areas, and BushForever sites that are not listed under Section 16 of the CALM Act 1984. These areas cover almost 49,000 ha within the Perth-Peel Strategic Assessment region.
+
+
+Protection level | Input data
+-----------------|------------
+Level 1 (High)   | `DEC_RegionalParks_withS16_20110502.shp`,`DEC_ManagedLandsAndWaters_20120601.shp`,`PP_WHA_clip.shp`,`PP_NHL_clip.shp`,`PP_CHL_clip.shp`  
+Level 2 (Medium) | `DEC_ManagedLandsAndWaters_20120601.shp`
+Level 3 (Low)    |  `DEC_ManagedLandsAndWaters_20120601.shp`,`DoP_StatePlanningPolicy28_BushForeverReserves_20120823.shp`,`DoP_Bush_Forever_201400623.shp`,`mrspoly_20120928.shp`,`prspoly_20120928.shp`
+
+The supplied protected area raster file has the following attributes:  
+* Level 1 = 6  
+* Level 2 = 5  
+* Level 3 = 4
+* Unprotected = 3
+
+
+**BushForever**  
+A layer representing all BushForever sites based on `DoP_Bush_Forever_201400623.shp`.  This will not be included in the final report but the outputs will be proved to OEPA for reporting on the biodiversity values within current BushForever sites
+
+```{r BushForever for Catherine}
+bushforever <- readShapePoly(paste0(envi.directory,"DOP/DoP_Bush_Forever_201400623.shp"))
+
+final.bushforever <- shp2raster(bushforever,ibra,label="BushForever",value=4,bkg=3, save=FALSE,map=FALSE)
+
+# png(paste0(output.directory,"bushforever.png"), width=15,height=15,units="cm",res=300)
+# plot(final.bushforever,axes=F,box=F,col=rev(terrain.colors(2)),main="BushForever",legend=F,zlim=c(3:4))
+# dev.off()
+
+```
+
+
+```{r create_conservation_rasters,eval=FALSE}
+    
+# DPAW Regional Parks under Section 16 of CALM Act
+  regional.parks16 <- readShapePoly(paste0(envi.directory, "DEC/DEC_RegionalParks_withS16_20110502.shp"),proj4string=GDA94)
+  regional.parks5 <- shp2raster(regional.parks16,ibra, label="DEC_RegionalParks_withS16_20110502", value=6,bkg=3,save=FALSE,transform=T,proj.to = GDA94.50,map=F)
+
+# DPAW Managed Lands
+managed.lands <- readShapePoly(paste0(envi.directory, "DEC/DEC_ManagedLandsAndWaters_20120601.shp"),proj4string=GDA94)
+    managed.lands$IUCN[managed.lands$CATEGORY=="State Forest"] <- 6
+    
+    managed.lands3 <- shp2raster(managed.lands[is.na(managed.lands$IUCN),],ibra, label="DEC_ManagedLandsAndWaters_20120601_No IUCN status", value=4,bkg=3,save=FALSE,transform=T,proj.to = GDA94.50,map=F)
+    
+    managed.lands <- managed.lands[!is.na(managed.lands$IUCN),]
+    
+    # State Forests (IUCN 6)
+    managed.lands4 <- shp2raster(managed.lands[managed.lands$IUCN=="6",],ibra, label="DEC_ManagedLandsAndWaters_20120601_IUCN 6", value=5,bkg=3,save=FALSE,transform=T,proj.to = GDA94.50,map=F)
+    
+  # IUCN 1-4
+    managed.lands5 <- shp2raster(managed.lands[(managed.lands$IUCN=="1a" | managed.lands$IUCN=="2" | managed.lands$IUCN=="3" | managed.lands$IUCN=="4"),],ibra, label="DEC_ManagedLandsAndWaters_20120601_IUCN 1-4", value=6,bkg=3,save=FALSE,transform=T,proj.to = GDA94.50,map=F)
+
+# Heritage
+world.heritage <- readShapePoly(paste0(envi.directory, "SEWPaC/PP_MNES_extract/PP_WHA_clip.shp"),proj4string=GDA94)
+  world.heritage5 <- shp2raster(world.heritage,ibra, label="PP_WHA_clip", value=6,bkg=3,save=FALSE,transform=T,proj.to = GDA94.50,map=F)
+
+national.heritage <- readShapePoly(paste0(envi.directory, "SEWPaC/PP_MNES_extract/PP_NHL_clip.shp"),proj4string=GDA94)
+  national.heritage5 <- shp2raster(national.heritage,ibra, label="PP_NHL_clip", value=6,bkg=3,save=FALSE,transform=T,proj.to = GDA94.50,map=F)
+
+commonwealth.heritage <- readShapePoly(paste0(envi.directory, "SEWPaC/PP_MNES_extract/PP_CHL_clip.shp"),proj4string=GDA94)
+  commonwealth.heritage5 <- shp2raster(commonwealth.heritage,ibra, label="PP_CHL_clip", value=6,bkg=3,save=FALSE,transform=T,proj.to = GDA94.50,map=F)
+
+# Bush Forever
+bushforever.SP28 <- readShapePoly(paste0(envi.directory,"DOP/DoP_StatePlanningPolicy28_BushForeverReserves_20120823.shp"))
+  bushforever3 <- shp2raster(bushforever.SP28,ibra, label="DoP_StatePlanningPolicy28_BushForeverReserves_20120823", value=4, bkg=3, save=FALSE,map=F)
+
+#MRS
+parks.rec <- readShapePoly(paste0(envi.directory,"MRS_PRS/mrspoly_20120928.shp"))
+  parks.rec3 <- shp2raster(parks.rec[(parks.rec$DESCRIPTIO=="PARKS & RECREATION" | parks.rec$DESCRIPTIO=="PARKS & RECREATION RESTRICTED"), ],ibra, label="mrspoly_20120928", value=4, bkg=3, save=FALSE,map=F)
+
+#PRS
+open.space <- readShapePoly(paste0(envi.directory,"MRS_PRS/prspoly_20120928.shp"))
+  open.space3 <- shp2raster(open.space[open.space$DESCRIPTIO=="REGIONAL OPEN SPACE" , ],ibra, label="prspoly_20120928", value=4, bkg=3, save=FALSE,map=F)
+
+final.protected.areas <- max(regional.parks5,managed.lands3,managed.lands4,managed.lands5,world.heritage5,national.heritage5,commonwealth.heritage5,bushforever3,parks.rec3,open.space3,final.bushforever)
+  
+# png(paste0(output.directory,"protected_areas.png"), width=15,height=15,units="cm",res=300)
+par(mar=c(1,1,1,1))
+plot(final.protected.areas,axes=F,box=F,col=rev(terrain.colors(4)),main="Protected Areas",legend=F,zlim=c(3,6))
+  legend(460000,6650000,legend = c("Low protection","Medium Protection","High Protection"),bty = "n",col=rev(terrain.colors(4))[2:4],pch=15,cex=0.8)
+plot(perth.shp,add=T)
+# dev.off()
+
+```
+
+
+```{r offsets raster}
+final.cumulative <- raster (paste0(output.directory,"scenario9_cumulative.development.tif"))
+  final.cumulative[final.cumulative==3]<-7
+origin(final.protected.areas) <- origin(final.cumulative)
+  
+offsets <- mosaic(final.cumulative,final.protected.areas,fun=min)
+  offsets[offsets==7] <- 3
+
+pdf("offsets.pdf",paper = "a4",width=0,height=0)
+plot(offsets,axes=F,box=F,col=rev(terrain.colors(6)),main="Offset areas",legend=F,zlim=c(1,6))
+legend("topright",legend = c("Existing dev.","Proposed dev.","Available for offsets","Low protection","Medium Protection","High Protection"),bty = "n",col=rev(terrain.colors(6)),pch=15,cex=0.8)
+plot(perth.shp,add=T)
+ dev.off() 
+```
+
+
+Offsets scenario 1
+* Offsets targeted to unprotected land within the PPSA region
+
+```{r offsets scenario 1}
+offsets1 <- mask(crop(offsets,perth),perth)
+
+offsets1.clipped <- mask(offsets1,clipping.mask)
+
+png("offsets1.png",width=15,height=15,units="cm",res=300,bg="transparent")
+  par(oma=c(0,0,0,0),mar=c(0,0,2,0))
+  plot(offsets1.clipped,axes=F,box=F,col=rev(rainbow(6)),main="Offsets Mask - Scenario 1",legend=F,zlim=c(1,6))
+    legend("topright",legend = c("Existing dev.","Proposed dev.","Offsets target","Low protect.","Medium protect.","High protect."),bty = "n",col=rev(rainbow(6)),pch=15,cex=0.8)
+    plot(perth.shp,add=T)
+dev.off()
+
+writeRaster(offsets1.clipped,filename=paste0(output.directory,"final/offsets1.clipped.tif"),format="GTiff",overwrite=T)
+```
+
+Offsets scenario 2
+* Offsets targeted to unprotected & levels 2 & 3 protected land within the PPSA region
+
+```{r offsets scenario 2}
+offsets2 <- offsets1
+  offsets2[offsets2==4] <- 3
+  offsets2[offsets2==5] <- 3
+
+offsets2.clipped <- mask(offsets2,clipping.mask)
+
+plot(offsets2.clipped,axes=F,box=F,col=rev(rainbow(6)),main="Offsets Mask - Scenario 2",legend=F,zlim=c(1,6))
+legend("topright",legend = c("Existing dev.","Proposed dev.","Offsets target","High protect."),bty = "n",col=rev(rainbow(6))[c(1:3,6)],pch=15,cex=0.8)
+plot(perth.shp,add=T)
+
+writeRaster(offsets2.clipped,filename=paste0(output.directory,"final/offsets2.clipped.tif"),format="GTiff",overwrite=T)
+```
+
+Offsets scenario 3
+* Offsets targeted to unprotected land across the IBRA region (ignoring already protected areas in IBRA)
+
+```{r offsets scenario 3}
+offsets3 <- offsets
+  offsets3[offsets3>=4] <- NA # remove protected areas in IBRA region
+ppsa.offsets3 <- offsets1
+  ppsa.offsets3[ppsa.offsets3<4] <- NA
+offsets3 <- mosaic(ppsa.offsets3,offsets3,fun=min)
+  
+offsets3.clipped <- mask(offsets3,ibra.clipping.mask)
+
+plot(offsets3.clipped,axes=F,box=F,col=rev(rainbow(6)),main="Offsets Mask - Scenario 3",legend=F,zlim=c(1,6))
+legend("topright",legend = c("Existing dev.","Proposed dev.","Offsets target","Low protect.","Medium protect.","High protect."),bty = "n",col=rev(rainbow(6)),pch=15,cex=0.8)
+plot(perth.shp,add=T)
+
+writeRaster(offsets3.clipped,filename=paste0(output.directory,"final/offsets3.clipped.tif"),format="GTiff",overwrite=T)
+```
+
+Offsets scenario 4
+* Offsets first targeted the PPSA, then outside the PPSA (ignoring what is already protected outside)
+
+```{r offsets scenario 4}
+offsets4 <- offsets
+  offsets4[offsets4>=4] <- NA
+  offsets4[offsets4==3] <- 4
+ppsa.offsets4 <- offsets1
+  ppsa.offsets4[ppsa.offsets4>3] <- ppsa.offsets4[ppsa.offsets4>3] + 1
+offsets4 <- mosaic(ppsa.offsets4,offsets4,fun=min)
+  offsets4[offsets4==3] <- 10
+  offsets4[offsets4==4] <- 3
+  offsets4[offsets4==10] <- 4
+  
+offsets4.clipped <- mask(offsets4,ibra.clipping.mask)
+
+plot(offsets4.clipped,axes=F,box=F,col=rev(rainbow(7)),main="Offsets Mask - Scenario 4",legend=F,zlim=c(1,7))
+legend("topright",legend = c("Existing dev.","Proposed dev.","IBRA Offsets target","PPSA Offsets target","Low protect.","Medium protect.","High protect."),bty = "n",col=rev(rainbow(7)),pch=15,cex=0.8)
+plot(perth.shp,add=T)
+
+writeRaster(offsets4.clipped,filename=paste0(output.directory,"final/offsets4.clipped.tif"),format="GTiff",overwrite=T)
+```
+
+```{r plot offsets}
+
+png("offsets.png",width=18,height=15,units="cm",res=300,bg="transparent")
+  par(oma=c(0,0,0,0),mar=c(0,0,2,0),mfrow=c(2,2))
+  plot(offsets1.clipped,axes=F,box=F,col=rev(rainbow(6)),main="Offsets Mask - Scenario 1",legend=F,zlim=c(1,6))
+    legend("topright",legend = c("Existing dev.","Proposed dev.","Offsets target","Low protect.","Medium protect.","High protect."),bty = "n",col=rev(rainbow(6)),pch=15,cex=0.8)
+    plot(perth.shp,add=T)
+
+  plot(offsets2.clipped,axes=F,box=F,col=rev(rainbow(6)),main="Offsets Mask - Scenario 2",legend=F,zlim=c(1,6))
+    legend("topright",legend = c("Existing dev.","Proposed dev.","Offsets target","High protect."),bty = "n",col=rev(rainbow(6))[c(1:3,6)],pch=15,cex=0.8)
+    plot(perth.shp,add=T)
+  
+  plot(offsets3.clipped,axes=F,box=F,col=rev(rainbow(6)),main="Offsets Mask - Scenario 3",legend=F,zlim=c(1,6))
+    legend("topright",legend = c("Existing dev.","Proposed dev.","Offsets target","Low protect.","Medium protect.","High protect."),bty = "n",col=rev(rainbow(6)),pch=15,cex=0.8)
+    plot(perth.shp,add=T)
+  
+  plot(offsets4.clipped,axes=F,box=F,col=rev(rainbow(7)),main="Offsets Mask - Scenario 4",legend=F,zlim=c(1,7))
+    legend("topright",legend = c("Existing dev.","Proposed dev.","Offsets target 2","Offsets target 1","Low protect.","Medium protect.","High protect."),bty = "n",col=rev(rainbow(7)),pch=15,cex=0.8)
+    plot(perth.shp,add=T)
+
+dev.off()
+
+
+```
+
+
+```{r scenarios, eval=FALSE}
+
+writeRaster(final.dop.eia1,filename=paste0(output.directory,"final/scenario1_eia1.tif"),format="GTiff",overwrite=T)
+  
+writeRaster(final.eia3.ils,filename=paste0(output.directory,"final/scenario2_eia3.tif"),format="GTiff",overwrite=T)
+  
+writeRaster(final.development.footprint,filename=paste0(output.directory,"final/scenario3_development.footprint.tif"),format="GTiff",overwrite=T)
+writeRaster(final.development.footprint.lgz,filename=paste0(output.directory,"final/scenario3_development.footprint.lgz.tif"),format="GTiff",overwrite=T)
+
+writeRaster(final.rural.residential,filename=paste0(output.directory,"final/scenario3a_rural.residential.tif"),format="GTiff",overwrite=T)
+
+writeRaster(final.urban,filename=paste0(output.directory,"final/scenario3b_urban.tif"),format="GTiff",overwrite=T)
+
+writeRaster(final.industrial,filename=paste0(output.directory,"final/scenario3c_industrial.tif"),format="GTiff",overwrite=T)
+ 
+writeRaster(final.brm.eia1,filename=paste0(output.directory,"final/scenario4_brm.eia1.tif"),format="GTiff",overwrite=T)
+
+writeRaster(final.brm.eil4,filename=paste0(output.directory,"final/scenario5_brm.eil4.tif"),format="GTiff",overwrite=T)
+
+writeRaster(final.brm.extract,filename=paste0(output.directory,"final/scenario6_brm.extraction.areas.tif"),format="GTiff",overwrite=T)
+
+writeRaster(final.pines,filename=paste0(output.directory,"final/scenario7_pines.tif"),format="GTiff",overwrite=T)
+
+writeRaster(final.infrastructure,filename=paste0(output.directory,"final/scenario8_infrastructure.tif"),format="GTiff",overwrite=T)
+
+writeRaster(final.cumulative,filename=paste0(output.directory,"final/scenario9_cumulative.development.tif"),format="GTiff",overwrite=T)
+writeRaster(final.cumulative.lgz,filename=paste0(output.directory,"final/scenario9_cumulative.development.lgz.tif"),format="GTiff",overwrite=T)
+
+writeRaster(final.bushforever,filename=paste0(output.directory,"final/bushforever.tif"),format="GTiff",overwrite=T)
+
+writeRaster(final.protected.areas,filename=paste0(output.directory,"final/protected.areas.tif"),format="GTiff",overwrite=T)
+
+writeRaster(final.offsets,filename=paste0(output.directory,"final/offsets.tif"),format="GTiff",overwrite=T)
+writeRaster(final.offsets.lgz,filename=paste0(output.directory,"final/offsets.lgz.tif"),format="GTiff",overwrite=T)
+
+  
+```
+
+```{r create A3 pdf for DoP, eval=FALSE}
+scenarios <- stack(dir(paste0(output.directory,"final/"),".tif",full.names=T))
+
+pdf(paste0(output.directory,"final/NERP development scenarios.pdf"),width=11.7,height=16.5,pointsize = 16)
+
+for(i in 3:nlayers(scenarios)){
+  plot.title <- capwords(gsub("[[:punct:]]"," ",names(scenarios[[i]])))
+    plot.title <- gsub("Scenario","Scenario ", plot.title)
+    plot.title <- gsub("Eia","EIA",plot.title)
+    plot.title <- gsub("Eil","EIL",plot.title)
+    plot.title <- gsub("Brm","BRM",plot.title)
+  
+  plot(scenarios[[i]],axes=F,box=F,col=terrain.colors(3),main=plot.title,legend=F,zlim=c(1,3))
+  legend(430000,6520000,legend = c("Existing","Proposed"),bty = "n",col=terrain.colors(3)[1:2],pch=15,cex=0.8)
+}
+
+plot(scenarios[[2]],axes=F,box=F,col=rev(terrain.colors(4)),main="Protected Areas",legend=F,zlim=c(3,6))
+  legend(430000,6520000,legend = c("Low protection","Medium Protection","High Protection"),bty = "n",col=rev(terrain.colors(4))[2:4],pch=15,cex=0.8)
+
+plot(scenarios[[1]],axes=F,box=F,col=rev(terrain.colors(2)),main="BushForever",legend=F,zlim=c(3:4))
+
+dev.off()
+
+```
+
+
+
+```{r clip scenarios by clipping mask, eval=FALSE}
+
+scenarios <- stack(dir(paste0(output.directory,"final/"),".tif",full.names=T))
+
+for (s in seq(scenarios)){
+  r <- scenarios[[s]]
+  r <- mask(r,clipping.mask,filename=paste0("~/GIS_data/Perth-Peel/zonation/100m/scenarios/final/",names(r),"_clipped.tif"), format="GTiff", overwrite=T)
+  plot(r, main=names(r),zlim=c(1,6))
+}
+
+```
+
+```{r quantify land area losses & protected areas, eval=FALSE}
+eia1 <-  raster("~/GIS_data/Perth-Peel/environmental data/100m/scenarios/scenario_eia1_unclipped.tif") 
+eia2 <-  raster("~/GIS_data/Perth-Peel/environmental data/100m/scenarios/scenario_eia1_unclipped.tif")
+protected.areas <- raster("~/GIS_data/Perth-Peel/environmental data/100m/scenarios/scenario_protected.areas_unclipped.tif")
+
+clip.area<-clipping.mask
+  clip.area[!is.na(clip.area)] <- 1
+
+# How much of the areas are going to be developed?
+eia1.area <- eia1
+  eia1.area[eia1.area!=3] <- 0
+  eia1.area[eia1.area==3] <- 1
+
+(eia1.area.lost <- 1-cellStats(eia1.area,stat='sum')/cellStats(clip.area,stat='sum'))
+
+eia2.area <- eia2
+  eia2.area[eia2.area!=3] <- 0
+  eia2.area[eia2.area==3] <- 1
+
+eia2.area.lost <- 1-cellStats(eia2.area,stat='sum')/cellStats(clip.area,stat='sum')
+
+# How much land is protected?
+protected.areas.area <- protected.areas
+  protected.areas.area[protected.areas.area!=4] <- 0
+  protected.areas.area[protected.areas.area==4] <- 1
+
+(protected.areas.protected <- cellStats(protected.areas.area,stat='sum')/cellStats(clip.area,stat='sum'))
+
+# How much of the protected areas are proposed for development?
+eia1.develop <- eia1
+  eia1.develop[eia1.develop!=2] <- 0
+
+protected <- protected.areas
+  protected[protected==3] <- 0
+
+eia1.develop.protected <- sum(eia1.develop,protected)
+  eia1.develop.protected[eia1.develop.protected!=6] <- 0
+  eia1.develop.protected[eia1.develop.protected==6] <- 1
+(protected.lost.eia1 <- cellStats(eia1.develop.protected,sum)/cellStats(protected.areas.area,stat='sum'))
+
+eia2.develop <- eia2
+  eia2.develop[eia2.develop!=2] <- 0
+
+eia2.develop.protected <- sum(eia2.develop,protected)
+  eia2.develop.protected[eia2.develop.protected!=6] <- 0
+  eia2.develop.protected[eia2.develop.protected==6] <- 1
+(protected.lost.eia2 <- cellStats(eia2.develop.protected,sum)/cellStats(protected.areas.area,stat='sum'))
+
+```
+
+
+
+```{r DOP EIA2, eval=FALSE}
+dop.eia2 <- readShapePoly(paste0(envi.directory,"DOP/DoP_EIA2_20130809.shp"))
+
+dop.eia2.area <- gArea(dop.eia2)/10000
+cat("Total area of EIA2 =",dop.eia2.area,"ha", "\n" )
+
+dop.eia2.proposed <- shp2raster(dop.eia2[!grepl("Developed Urban|Existing Industrial",dop.eia2$Land_Type),], perth, label="DOP_EIA2_proposed", value=2, bkg=3, save=FALSE)
+
+dop.eia2.existing <- shp2raster(dop.eia2[grepl("Developed Urban|Existing Industrial",dop.eia2$Land_Type),], perth, label="DOP_EIA2_existing", value=1, bkg=3, save=FALSE)
+
+final.dop.eia2 <- min(dop.eia2.proposed,dop.eia2.existing,filename="final_DOP_EIA2",format="GTiff",overwrite=T)
+
+```
+
+```{r BRM EIA2, eval=FALSE}
+
+dmp.eia2 <- readShapePoly(paste0(envi.directory,"DMP/DMP_BRM_EIA_V2.shp"))
+
+dmp.eia2 <- shp2raster(dmp.eia2, perth, label="DMP_EIA2", value=1, bkg=3, save=FALSE)
+
+```
+
+
+
+
+```{r infrastructure, eval=FALSE}
+
+dot.proposed.railstops <- readShapePoints(paste0(envi.directory,"DOT/DoT_PassengerRailStops_Proposed_20121017.shp"))
+  dot.proposed.railstops <- gBuffer(dot.proposed.railstops,width=10, byid=TRUE)
+  dot.proposed.railstops.buffer <- gBuffer(dot.proposed.railstops,width=100, byid=TRUE)
+
+  dot.proposed.railstops.area <- gArea(dot.proposed.railstops.buffer,byid=FALSE)/10000
+
+future.railstops <- shp2raster(dot.proposed.railstops, perth, label="DoT_PassengerRailStops_Proposed",value=1,bkg=3, save=FALSE)
+
+Future_Roads_Metropolitan_Peel_DoP <- readShapeLines(paste0(envi.directory,"DOP/Future_Roads_Metropolitan_Peel_DoP.shp"))
+
+  Future_Roads_Metropolitan_Peel_DoP.buffer <- gBuffer(Future_Roads_Metropolitan_Peel_DoP,width=100,byid=TRUE)
+  Future_Roads_Metropolitan_Peel_DoP.area <- gArea(Future_Roads_Metropolitan_Peel_DoP.buffer,byid=FALSE)/10000
+
+  
+future.roads <- shp2raster(Future_Roads_Metropolitan_Peel_DoP, perth, label="Future_Roads_Metropolitan_Peel_DoP",value=1,bkg=3, save=FALSE)
+
+WP_New_Sub_stations_20131003 <- readShapePoints(paste0(envi.directory,"WP/WP_New_Sub_stations_20131003.shp"))
+  WP_New_Sub_stations_20131003 <- gBuffer(WP_New_Sub_stations_20131003,width=10, byid=TRUE)
+  WP_New_Sub_stations_20131003.buffer <- gBuffer(WP_New_Sub_stations_20131003,width=100, byid=TRUE)
+  WP_New_Sub_stations_20131003.area <- gArea(WP_New_Sub_stations_20131003.buffer,byid=FALSE)/10000
+  future.substations <- shp2raster(WP_New_Sub_stations_20131003, perth, label="WP_New_Sub_stations",value=1, bkg=3, save=FALSE)
+
+WP_New_Power_Lines_20131003 <- readShapeLines(paste0(envi.directory, "WP/WP_New_Power_Lines_20131003.shp"))
+  WP_New_Power_Lines_20131003.buffer <- gBuffer(WP_New_Power_Lines_20131003,width=100, byid=TRUE)
+  WP_New_Power_Lines_20131003.area <- gArea(WP_New_Power_Lines_20131003.buffer,byid=FALSE)/10000
+  future.powerlines <- shp2raster(WP_New_Power_Lines_20131003, perth, label="WP_New_Power_Lines_20131003", value=1, bkg=3, save=FALSE)
+
+WC_future_assests_20131010 <- readShapeLines(paste0(envi.directory,"WC/WC_future_assests_20131010.shp"))
+  WC_future_assests_20131010.buffer <- gBuffer(WC_future_assests_20131010,width=100, byid=TRUE)
+  WC_future_assests_20131010.area <- gArea(WC_future_assests_20131010.buffer,byid=FALSE)/10000
+future.water <- shp2raster(WC_future_assests_20131010, perth, label = "WC_future_assests_20131010", value= 2, bkg=3, save=FALSE)
+
+DoT_RecreationalPaths_Future_20121127 <- readShapeLines(paste0(envi.directory,"DOT/DoT_RecreationalPaths_Future_20121127.shp"))
+  DoT_RecreationalPaths_Future_20121127.buffer <- gBuffer(DoT_RecreationalPaths_Future_20121127,width=100, byid=TRUE)
+  DoT_RecreationalPaths_Future_20121127.area <- gArea(DoT_RecreationalPaths_Future_20121127.buffer,byid=FALSE)/10000
+future.paths <- shp2raster(DoT_RecreationalPaths_Future_20121127, perth, label="DoT_RecreationalPaths_Future_20121127", value=1, bkg=3, save=FALSE)
+
+DoT_PrincipalSharedPaths_Future_20121127 <- readShapeLines(paste0(envi.directory,"DOT/DoT_PrincipalSharedPaths_Future_20121127.shp"))
+  DoT_PrincipalSharedPaths_Future_20121127.buffer <- gBuffer(DoT_PrincipalSharedPaths_Future_20121127,width=100, byid=TRUE)
+  DoT_PrincipalSharedPaths_Future_20121127.area <- gArea(DoT_PrincipalSharedPaths_Future_20121127.buffer,byid=FALSE)/10000
+shared.paths <- shp2raster(DoT_PrincipalSharedPaths_Future_20121127,perth,label="DoT_PrincipalSharedPaths_Future_20121127",value=1,bkg=3, save=FALSE)
+
+DoT_PassengerRailExtension_Proposed_20121017 <- readShapeLines(paste0(envi.directory,"DOT/DoT_PassengerRailExtension_Proposed_20121017.shp"))
+  DoT_PassengerRailExtension_Proposed_20121017.buffer <- gBuffer(DoT_PassengerRailExtension_Proposed_20121017,width=100, byid=TRUE)
+  DoT_PassengerRailExtension_Proposed_20121017.area <- gArea(DoT_PassengerRailExtension_Proposed_20121017.buffer,byid=FALSE)/10000
+future.rail <- shp2raster(DoT_PassengerRailExtension_Proposed_20121017, perth, label="DoT_PassengerRailExtension_Proposed_20121017", value=1, bkg=3, save=FALSE)
+
+SMPSP_road_network_conceptual_20131108 <- readShapeLines(paste0(envi.directory,"SMPSP/SMPSP_road_network_conceptual_20131108.shp"),delete_null_obj=TRUE)
+  SMPSP_road_network_conceptual_20131108.buffer <- gBuffer(SMPSP_road_network_conceptual_20131108,width=100, byid=TRUE)
+  SMPSP_road_network_conceptual_20131108.area <- gArea(SMPSP_road_network_conceptual_20131108.buffer,byid=FALSE)/10000
+future.smpsp.roads <- shp2raster(SMPSP_road_network_conceptual_20131108, perth, label="SMPSP_road_network_conceptual_20131108", value=1, bkg=3, save=FALSE)
+
+future.infrastructure <- calc(stack(future.railstops, future.roads, future.substations, future.powerlines, future.water, future.paths, shared.paths,future.rail,future.smpsp.roads),fun=min, filename=paste0(output.directory,"infrastructure"), format="GTiff", overwrite=T)
+  plot(future.infrastructure, main="future.infrastructure",zlim=c(1,3))
+
+cat("Area of future infrastructure =",dot.proposed.railstops.area+Future_Roads_Metropolitan_Peel_DoP.area+WP_New_Sub_stations_20131003.area+WP_New_Power_Lines_20131003.area+WC_future_assests_20131010.area+DoT_RecreationalPaths_Future_20121127.area+DoT_PrincipalSharedPaths_Future_20121127.area+DoT_PassengerRailExtension_Proposed_20121017.area+SMPSP_road_network_conceptual_20131108.area,"ha","\n", "Note that this doesn't appear to be correct","\n")
+
+```
+
+
+
+```{r rural residential, eval=FALSE}
+rural_residential_zoned <- readShapePoly(paste0(envi.directory,"DOP/rural_residential_zoned.shp"))
+  rural_residential_zoned.area <- gArea(rural_residential_zoned, byid=FALSE)/10000
+
+rural.residential <- shp2raster(rural_residential_zoned,perth, label="rural_residential_zoned",value=1, bkg=3, save=FALSE)
+
+cat("Area of rural residential =",rural_residential_zoned.area,"ha","\n")
+
+```
+
+
+*This file was last updated on 1 July 2014 and last run on `r format(Sys.time(), "%d %B %Y")`.*

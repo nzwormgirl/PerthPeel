@@ -1,0 +1,39 @@
+Title
+========================================================
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring web pages (click the **Help** toolbar button for more details on using R Markdown).
+
+When you click the **Knit HTML** button a web page will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r}
+library(rgdal)
+library(raster)
+source("C:/Users/awhitehead/Dropbox/Random R code/shp2raster.R")
+
+setwd("~/GIS_data/Australia-wide/soils/")
+
+GDA94 <- CRS("+proj=longlat +ellps=WGS84 +towgs84=0,0,0,0,0,0,0 +no_defs")
+GDA94.50 <- CRS("+proj=utm +zone=50 +south +ellps=GRS80 +units=m +no_defs")
+
+soil.rasters <- stack(dir("~/GIS_data/Australia-wide/soils/",pattern=".asc$",full.names=T))
+
+pp.ibra <- raster("~/GIS_data/Perth-Peel/environmental data/pp_ibra_mask.tif")
+
+soil.rasters <- crop(projectRaster(soil.rasters,pp.ibra),pp.ibra)
+
+
+soil.shp <- readOGR(dsn=".",layer="soilAtlas2M")
+  soil.shp <- shp2raster(soil.shp,pp.ibra,value=soil.shp$MAP_UNIT,transform=T,proj.from=GDA94,proj.to=GDA94.50,save=F,mask=F,bkg=0,label="soilAtlas2M")
+
+soil.rasters <- stack(soil.rasters,soil.shp)
+  soil.rasters <- mask(resample(soil.rasters,pp.ibra),pp.ibra)
+
+writeRaster(soil.rasters,filename="~/GIS_data/Perth-Peel/environmental data/100m/ibra/soils/",bylayer=T,format="GTiff",suffix=names(soil.rasters))
+```
+
+You can also embed plots, for example:
+
+```{r fig.width=7, fig.height=6}
+plot(cars)
+```
+

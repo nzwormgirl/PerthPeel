@@ -1,0 +1,62 @@
+Note that this isn't fully automated, so take care if overwriting.  I have manually allocated the High, Med, Low classes to state species based on the existing column and probably need to check that these are still right.  Same deal for EPA and Ramsar.  Might need to tweak these factors to get the desired ranking
+
+```{r}
+rm(list=ls()) 
+protected.species <- read.csv("~/GIS_data/Perth-Peel/species data/WA listed protected species.csv")
+
+# weights by status only
+protected.species$combined_status <- paste(protected.species$EPBC_Status,protected.species$WA_Status)
+    protected.species$combined_status <- gsub("Critically Endangered","Critically_Endangered",protected.species$combined_status)
+
+ranks <- read.csv("~/GIS_data/Perth-Peel/species data/DoE_species_ranks.csv")
+
+
+
+mnes.species <- ranks$Name[(ranks$Name %in% protected.species$Scientific.Name)==TRUE]
+
+for(i in seq(mnes.species)){
+  species <- as.character(mnes.species[i])  
+  endemism <- ranks$KLM..[ranks$Name==species]
+  if(endemism > 80) {
+    protected.species$Endemism[protected.species$Scientific.Name == species] <- "High"
+    } else if (endemism <= 20) {
+    protected.species$Endemism[protected.species$Scientific.Name == species] <- "Low"
+  } else protected.species$Endemism[protected.species$Scientific.Name == species] <- "Mid"
+}
+
+write.csv(protected.species, "C:/Users/awhitehead/Documents/GIS_data/Perth-Peel/species data/WA listed protected species.csv", row.names=FALSE)
+
+
+
+```
+
+You can also embed plots, for example:
+
+```{r }
+
+weights <- d(status=c("Critically_Endangered", "Endangered", "Vulnerable", "P1","P2","P3","P4","P5"), weight=c(5,4,3,2,2,1,1,1))
+weights$weight[is.na(weights$weight)] <- 1
+
+for (w in rev(1:nrow(weights))) {
+  protected.species$weight_status[grep(weights$status[w],protected.species$combined_status)] <- weights$weight[w]
+    }
+
+protected.species$weight_status[protected.species$ignore=="N"] <- protected.species$weight_status[protected.species$ignore=="N"] + 1
+
+protected.species$rank_DoE[protected.species$Endemism=="High"] <- protected.species$weight_status[protected.species$Endemism=="High"] + 1
+protected.species$rank_DoE[protected.species$Endemism=="Mid"] <- protected.species$weight_status[protected.species$Endemism=="Mid"] 
+protected.species$rank_DoE[protected.species$Endemism=="Low"] <- protected.species$weight_status[protected.species$Endemism=="Low"] - 1
+
+protected.species$rank_DoE[protected.species$rank_DoE==0] <- 1
+
+write.csv(protected.species, "C:/Users/awhitehead/Documents/GIS_data/Perth-Peel/species data/WA listed protected species.csv", row.names=FALSE)
+
+
+```
+
+```{r create weighted spp files}
+ordered.weights <- read.csv("WA listed protected species_species with data_spp.ordered.csv") 
+
+zonation.spp 
+
+```

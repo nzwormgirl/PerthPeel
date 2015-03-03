@@ -1,0 +1,92 @@
+---
+title: "Identifying species in high priority areas"
+author: "Amy Whitehead"
+date: "Thursday, December 18, 2014"
+output: html_document
+---
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r set up}
+rm(list=ls())
+packages(raster)
+packages(maptools)
+packages(colorRamps)
+packages(fields)
+packages(RColorBrewer)
+
+  GDA94.50 <- CRS("+proj=utm +zone=50 +south +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs")
+  GDA94 <- CRS("+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs")
+
+# computer
+# computer <- "~"
+computer <- "//654cw-20990/Amy"
+
+# define paths for input and output files
+input_path <- paste0(computer,'/GIS_data/Perth-Peel/zonation/100m/')
+output_path <- paste0(computer,'/GIS_data/Perth-Peel/zonation/100m/Conservation_Letters/output/')
+
+# date of the output files
+#   analysis.date <- '20140728' # remember to update to correct date
+  analysis.date <- '20140924'
+
+PP.mask <- raster("~/GIS_Data/Perth-Peel/mask files/perth.mask.tif")
+PP.clipping.mask <- raster("~/GIS_Data/Perth-Peel/mask files/perth.clipping.mask.tif")
+PP.shp <- readShapePoly("~/GIS_data/Perth-Peel/DOP/DoP_StrategicAssessmentStudyBoundary_Extended_20121004_GDA94.shp", proj4=GDA94)
+  PP.shp <- spTransform(PP.shp,GDA94.50)
+
+species <- as.vector(read.table(paste0(input_path,'cl.ppsa.rank.spp'), header=F, sep='\t')[,6])
+threatened.sp <- read.csv("~/GIS_data/Perth-Peel/species data/WA listed protected species.csv")
+modelled.sp <- paste0("PP/",gsub(" ","_",threatened.sp$Scientific.Name[grepl("TRUE",threatened.sp$sdm)]),"_PP.tif")
+```
+
+You can also embed plots, for example:
+
+```{r calculate distribution sizes}
+n.cells <- length(PP.clipping.mask[!is.na(PP.clipping.mask)])
+interest.points <- data.frame(x=c(383394.5, 423775.1, 383016.2, 397850.3),y=c(6497378, 6478683, 6429329, 6389553))
+
+distribution.size <- data.frame(species=species,total=NA,proportion=NA, box1=NA, box2=NA, box3=NA,box4=NA)
+
+pb <- txtProgressBar(min = 0, max = length(species), initial = 0, style = 3)
+
+for(i in seq(species)){
+# for(i in 215:length(species)){
+  r <- raster(paste0(input_path,species[i]))
+  if(species[i] %in% modelled.sp==TRUE) r <- r/1000
+  distribution.size$total[i] <- cellStats(r,sum)
+  distribution.size$proportion[i] <- distribution.size$total[i]/n.cells
+  
+  distribution.size$box1[i] <- cellStats(crop(r,extent(interest.points$x[1]-6000,interest.points$x[1]+6000,interest.points$y[1]-6000,interest.points$y[1]+6000)),sum)/distribution.size$total[i]
+  distribution.size$box2[i] <- cellStats(crop(r,extent(interest.points$x[2]-6000,interest.points$x[2]+6000,interest.points$y[2]-6000,interest.points$y[2]+6000)),sum)/distribution.size$total[i]
+  distribution.size$box3[i] <- cellStats(crop(r,extent(interest.points$x[3]-6000,interest.points$x[3]+6000,interest.points$y[3]-6000,interest.points$y[3]+6000)),sum)/distribution.size$total[i]
+  distribution.size$box4[i] <- cellStats(crop(r,extent(interest.points$x[4]-6000,interest.points$x[4]+6000,interest.points$y[4]-6000,interest.points$y[4]+6000)),sum)/distribution.size$total[i]
+  
+  setTxtProgressBar(pb, i)
+  gc()
+}
+
+write.csv(distribution.size,paste0(output_path,"distribution.size.csv"),row.names=F)
+
+
+```
+
+```{r identify species of interest}
+
+distribution.size <- read.csv(paste(output_path,"distribution.size.csv"))
+
+boxplot(distribution.size$box1,distribution.size$box2,distribution.size$box3,distribution.size$box1,horizontal = T,names = c("Box 1","Box 2","Box 3","Box 4"),las=1)
+abline(v=0.4,lty=3,col="grey")
+
+threshold <- 0.3
+
+important.species <- list(distribution_size_threshold=threshold,box1=cbind(threatened.sp[threatened.sp$Scientific.Name %in% gsub("_"," ",gsub("PP|\\/|_SSI\\.|_PP|\\.tif","",distribution.size$species[distribution.size$box1>threshold])),c("Scientific.Name","AcceptedCommonName","Taxa","Endemism","WA_Status","EPBC_Status","mnes","rank_DoE","final.records","sdm")],distribution.size=distribution.size$proportion[distribution.size$box1>threshold],prop.dist=distribution.size$box1[distribution.size$box1>threshold]),
+    box2=cbind(threatened.sp[threatened.sp$Scientific.Name %in% gsub("_"," ",gsub("PP|\\/|_SSI\\.|_PP|\\.tif","",distribution.size$species[distribution.size$box2>threshold])),c("Scientific.Name","AcceptedCommonName","Taxa","Endemism","WA_Status","EPBC_Status","mnes","rank_DoE","final.records","sdm")],distribution.size=distribution.size$proportion[distribution.size$box2>threshold],prop.dist=distribution.size$box2[distribution.size$box2>threshold]),
+    box3=cbind(threatened.sp[threatened.sp$Scientific.Name %in% gsub("_"," ",gsub("PP|\\/|_SSI\\.|_PP|\\.tif","",distribution.size$species[distribution.size$box3>threshold])),c("Scientific.Name","AcceptedCommonName","Taxa","Endemism","WA_Status","EPBC_Status","mnes","rank_DoE","final.records","sdm")],distribution.size=distribution.size$proportion[distribution.size$box3>threshold],prop.dist=distribution.size$box3[distribution.size$box3>threshold]),
+    box4=cbind(threatened.sp[threatened.sp$Scientific.Name %in% gsub("_"," ",gsub("PP|\\/|_SSI\\.|_PP|\\.tif","",distribution.size$species[distribution.size$box4>threshold])),c("Scientific.Name","AcceptedCommonName","Taxa","Endemism","WA_Status","EPBC_Status","mnes","rank_DoE","final.records","sdm")],distribution.size=distribution.size$proportion[distribution.size$box4>threshold],prop.dist=distribution.size$box4[distribution.size$box4>threshold]))
+
+
+```
+

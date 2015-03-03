@@ -1,0 +1,55 @@
+Change all ssi files to presence-absence rasters
+========================================================
+
+```{r load_data}
+rm(list=ls())
+# source("C:/Users/awhitehead/Dropbox/Random R code/tweet me.r")
+library(raster)
+
+computer <- "//654cw-20990/Amy/"
+
+ssi.dir <- "~/GIS_data/Perth-Peel/zonation/100m/ssi_files/" 
+ssi.files <- dir(ssi.dir, pattern=".txt$", recursive=T)
+
+pp.clipping.mask<- raster(paste0(computer,"GIS_data/Perth-Peel/mask files/perth.clipping.mask.tif"))
+ibra.clipping.mask<- raster(paste0(computer,"GIS_data/Perth-Peel/mask files/ibra.clipping.mask.tif"))
+ibra.pa.clipping.mask<- raster(paste0(computer,"GIS_data/Perth-Peel/mask files/ibra.pa.clipping.mask.tif"))
+
+```
+
+```{r presence absence function}
+
+presence.absence.raster <- function (mask.raster,species.data,raster.label="") {
+    #set the cells that contain points to 1
+  speciesRaster <- rasterize(species.data,mask.raster,field=1,background=0)
+    speciesRaster <- mask(speciesRaster,mask.raster)
+    #label the raster
+    names(speciesRaster) <- species
+   writeRaster(speciesRaster,paste0(computer,"GIS_data/Perth-Peel/zonation/100m/",raster.label,".tif"), format="GTiff",overwrite=T)
+#   cat("Converted",raster.label,"to raster","\n")
+}
+
+```
+
+```{r convert ssi files to rasters}
+cat("Converting SSI files","\n")
+pb <- txtProgressBar(min=0,max=length(ssi.files),style=3)
+
+for(i in 1:length(ssi.files)){
+ try({ 
+  species.data <- read.table(paste0(ssi.dir,ssi.files[i]),sep="\t")
+  species.data <- species.data[,1:2]
+  species <- strsplit(ssi.files[i],".txt")
+  species <- gsub(" ","_",species)
+  
+  presence.absence.raster(pp.clipping.mask,species.data, raster.label=paste0("PP/",species,"_SSI.PP"))
+  presence.absence.raster(ibra.clipping.mask,species.data, raster.label=paste0("IBRA/",species,"_SSI.IBRA"))
+  presence.absence.raster(ibra.pa.clipping.mask,species.data, raster.label=paste0("IBRA/",species,"_SSI.IBRA.PA"))
+},silent=T)
+  
+  setTxtProgressBar(pb,i)
+  
+  }
+close(pb)
+
+```

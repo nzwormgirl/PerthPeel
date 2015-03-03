@@ -1,0 +1,75 @@
+Workflow for Perth-Peel
+========================================================
+
+This document describes the steps that are needed to get from the raw data to a zonation run.  Note that all files should currently be pointing at data at a resolution of 100m.
+
+```{r source function}
+setwd("~/RSP/R Code/Perth-Peel")
+
+ksource <- function(x, ...) {
+  library(knitr)
+  source(purl(x, output = tempfile()), ...)
+}
+```
+
+1. Extract data from the downloaded files from NatureMap and the Atlas of Living Australia
+
+```{r extract_data}
+ksource("PP_extract records from ALA and NM.rmd")
+
+```
+
+2. Create environmental layers
+a. Create a clipping mask using all spatial areas to be included
+b. Generate percentage cover layers from nvis
+c. Create individual rasters for each TEC type by attributes
+d. Resample all environmental layers to match
+
+```{r resample environment}
+ksource("create clipping mask for zonation runs.Rmd")
+
+ksource("PP_percentage cover.Rmd")
+
+ksource("PP_extract TEC raster by attributes.Rmd")
+
+ksource("PP_resample rasters to make identical.Rmd")
+
+```
+
+3.  Create input species files for Maxent and Zonation
+- Species with greater than the minimum number of records exported to maxent.data.csv and maps to pdf
+- Tiffs created for species of special interest
+- TECs listed and added to zonation spp files
+
+
+```{r create Maxent files}
+
+ksource("PP_create maxent and zonation files.Rmd")
+
+# use this if you need to reclip the files for some reason but don't want to start from the raw data (i.e. you changed the veg mask)
+ksource("PP_convert ssi txt files to tif rasters.Rmd")
+
+```
+
+4. Run Maxent from batch file
+- Run synctoy batch file to keep data on SC synchronised
+
+5. Convert Maxent output ascii files to tifs and clip by extant vegetation
+- Note that there are dates in this file to point to the correct maxent folder - will need to change these to make sure that we end up with the right data at the end.
+
+6. Create pdfs of Maxent output and point data for DEC and SEWPaC
+
+```{r clip maxent files}
+
+ksource("PP_ascii files to tifs.Rmd")
+
+ksource("PP_save Maxent sdms to pdf.rmd")
+
+```
+
+6. Run zonation models from batch file
+- Run synctoy batch file to keep data on SC synchronised
+
+7. Create development scenarios
+- write a script that takes the shapefiles/rasters of potential development scenarios, merges them together and masks them to the SA region
+```{r create development scenarios}

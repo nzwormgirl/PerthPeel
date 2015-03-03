@@ -1,0 +1,161 @@
+Compare Maxent AUC values from multiple runs
+========================================================
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring web pages (click the **MD** toolbar button for help on Markdown).
+
+When you click the **Knit HTML** button a web page will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r}
+rm(list=ls())
+
+taxa <- c("invertebrates","reptiles","mammals","plants","birds")
+model <- "Model3"
+
+envi.names <- c("mean_temp", "cold_temp","hot_temp","mean_rain","seasonal_rain","mean_solar","altitude","slope","eastness","northness","rugg250","rugg500","rugg1000","terr_250","terr_500","terr_1000","cti","nvis_mvs_exotics","Banksia2000","Bare2000","Casuarina2000","Cleared2000","Eucalyptus2000","grassland2000","Melaleuca2000","Other_shrublands2000","pines2000","Woody2000","water_dist_perm","water_dist_perm_ephem","soilAtlas2M","clay","fert","nutrients")
+
+computer <- "//654cw-20990/Amy"
+#setwd("~/GIS_data/Hunter/Maxent_files/output/combined.output")
+
+pb <- winProgressBar(title = "summarising MaxEnt results by taxa", label = "0% done",min = 0, max = length(taxa), initial = 0, width = 400)
+
+for(t in seq(taxa)){
+  maxent.dir <- paste0(computer,"/GIS_data/Perth-Peel/Maxent_files/environmental_data/100m/ibra/output/",taxa[t],"/",model,"/")
+  
+  output <- read.csv(paste0(maxent.dir,"maxentResults.csv"))
+  assign(paste0(taxa[t],".",model,"_maxentResults"), output)
+  assign(paste0(taxa[t],"_n.sp"),length(output$Species[grepl("average",output$Species)]))
+    output <- output[!grepl("average",output$Species),]
+  
+#   training.gain <- output[,c(1,grep("Training.gain.with.only",colnames(output)))]
+
+  perm.importance <- output[,c(1,grep("permutation.importance",colnames(output)))]
+  
+  relative.contribution <- output[,c(1,grep(".contribution",colnames(output)))]
+  
+  test.AUC <- output[,c(1,grep("Test.AUC",colnames(output)))]
+  
+#   assign(paste0(taxa[t],"_training.gain"),training.gain)
+  assign(paste0(taxa[t],"_perm.importance"),perm.importance)
+  assign(paste0(taxa[t],"_relative.contribution"),relative.contribution)
+  assign(paste0(taxa[t],"_test.AUC"),test.AUC)
+  
+#   assign(paste0(taxa[t],"_mean.training.gain"), colMeans(training.gain[,-1]))
+  assign(paste0(taxa[t],"_mean.perm.importance"), colMeans(perm.importance[,-1]))
+  assign(paste0(taxa[t],"_mean.relative.contribution"), colMeans(relative.contribution[,-1]))
+  assign(paste0(taxa[t],"_mean.se.test.AUC"), paste0(round(mean(test.AUC[,-1]),3)," (",round(se(test.AUC[,-1]),3),")"))
+ 
+#   assign(paste0(taxa[t],"_se.training.gain"), apply(training.gain[,-1],2,se))
+  assign(paste0(taxa[t],"_se.perm.importance"), apply(perm.importance[,-1],2,se))
+  assign(paste0(taxa[t],"_se.relative.contribution"), apply(relative.contribution[,-1],2,se))
+
+  setWinProgressBar(pb, t, label=sprintf("%g%% done", round(t/length(taxa),2)*100))
+}
+
+close(pb)
+
+
+
+# training.gain.summary <- d(variable=unique(c(names(invertebrates_mean.training.gain),names(reptiles_mean.training.gain),names(mammals_mean.training.gain),names(birds_mean.training.gain),names(plants_mean.training.gain))),invertebrates=NA,birds=NA,mammals=NA,plants=NA,reptiles=NA)
+
+# for(t in seq(taxa)){
+#   input <- get(paste0(taxa[t],"_mean.training.gain"))
+#   se.input <- get(paste0(taxa[t],"_se.training.gain"))
+#   for(i in seq(names(input))){
+#     training.gain.summary[training.gain.summary$variable==names(input)[i],colnames(training.gain.summary)==taxa[t]] <- paste0(round(input[i],2)," (",round(se.input[i],2),")")
+#   }
+# }
+#   training.gain.summary[is.na(training.gain.summary)] <- "-"
+#   write.csv(training.gain.summary, paste0(computer,"/GIS_data/Perth-Peel/Maxent_files/environmental_data/100m/ibra/output/training.gain.summary_",model,".csv"),row.names=F)
+
+perm.importance.summary <- d(variable=unique(c("N", "AUC",names(invertebrates_mean.perm.importance),names(reptiles_mean.perm.importance),names(mammals_mean.perm.importance),names(birds_mean.perm.importance),names(plants_mean.perm.importance))),invertebrates=NA,birds=NA,mammals=NA,plants=NA,reptiles=NA)
+
+for(t in seq(taxa)){
+  input <- get(paste0(taxa[t],"_mean.perm.importance"))
+  se.input <- get(paste0(taxa[t],"_se.perm.importance"))
+# paste0("-N ",gsub(".permutation.importance","",names(input[input<1])),collapse=" ")
+# d(input[input>1])  
+  
+  for(i in seq(names(input))){
+    perm.importance.summary[perm.importance.summary$variable==names(input)[i],colnames(perm.importance.summary)==taxa[t]] <- paste0(round(input[i],2)," (",round(se.input[i],2),")")
+  }
+ perm.importance.summary[perm.importance.summary$variable=="N",taxa[t]] <- get(paste0(taxa[t],"_n.sp"))
+  perm.importance.summary[perm.importance.summary$variable=="AUC",taxa[t]] <- get(paste0(taxa[t],"_mean.se.test.AUC"))
+
+}
+
+perm.importance.summary$variable <- gsub(".permutation.importance|X_","",perm.importance.summary$variable)
+  perm.importance.summary[is.na(perm.importance.summary)] <- "-"
+
+selected.variables <- c("N","AUC",envi.names[envi.names %in% perm.importance.summary$variable])
+
+write.csv(perm.importance.summary[match(selected.variables,perm.importance.summary$variable),], paste0(computer,"/GIS_data/Perth-Peel/Maxent_files/environmental_data/100m/ibra/output/perm.importance.summary_",model,".csv"), row.names=F)
+
+relative.contribution.summary <- d(variable=unique(c("N", "AUC",names(invertebrates_mean.relative.contribution),names(reptiles_mean.relative.contribution),names(mammals_mean.relative.contribution),names(birds_mean.relative.contribution),names(plants_mean.relative.contribution))),invertebrates=NA,birds=NA,mammals=NA,plants=NA,reptiles=NA)
+
+for(t in seq(taxa)){
+  input <- get(paste0(taxa[t],"_mean.relative.contribution"))
+  se.input <- get(paste0(taxa[t],"_se.relative.contribution"))
+
+  for(i in seq(names(input))){
+    relative.contribution.summary[relative.contribution.summary$variable==names(input)[i],colnames(relative.contribution.summary)==taxa[t]] <- paste0(round(input[i],2)," (",round(se.input[i],2),")")
+  }
+  relative.contribution.summary[relative.contribution.summary$variable=="N",taxa[t]] <- get(paste0(taxa[t],"_n.sp"))
+  relative.contribution.summary[relative.contribution.summary$variable=="AUC",taxa[t]] <- get(paste0(taxa[t],"_mean.se.test.AUC"))
+}
+
+relative.contribution.summary$variable <- gsub(".contribution|X_","",relative.contribution.summary$variable)
+  relative.contribution.summary[is.na(relative.contribution.summary)] <- "-"
+selected.variables <- c("N","AUC",envi.names[envi.names %in% relative.contribution.summary$variable])
+
+# relative.contribution.summary <- rbind(relative.contribution.summary,c("AUC", invertebrates_mean.se.test.AUC, birds_mean.se.test.AUC,mammals_mean.se.test.AUC,plants_mean.se.test.AUC,reptiles_mean.se.test.AUC ))
+# relative.contribution.summary <- rbind(relative.contribution.summary,c("N", nrow(invertebrates_test.AUC), nrow(birds_test.AUC),nrow(mammals_test.AUC),nrow(plants_test.AUC),nrow(reptiles_test.AUC)))
+
+write.csv(relative.contribution.summary[match(selected.variables,relative.contribution.summary$variable),], paste0(computer,"/GIS_data/Perth-Peel/Maxent_files/environmental_data/100m/ibra/output/relative.contribution.summary_",model,".csv"), row.names=F)
+
+
+```
+
+```{r update maxent batch files}
+
+names(invertebrates_mean.perm.importance[invertebrates_mean.perm.importance<1])
+d(invertebrates_mean.perm.importance[invertebrates_mean.perm.importance>1])
+
+names(birds_mean.perm.importance[birds_mean.perm.importance<1])
+d(birds_mean.perm.importance[birds_mean.perm.importance>1])
+
+names(mammals_mean.perm.importance[mammals_mean.perm.importance<1])
+d(mammals_mean.perm.importance[mammals_mean.perm.importance>1])
+
+names(plants_mean.perm.importance[plants_mean.perm.importance<1])
+d(plants_mean.perm.importance[plants_mean.perm.importance>1])
+
+names(reptiles_mean.perm.importance[reptiles_mean.perm.importance<1])
+d(reptiles_mean.perm.importance[reptiles_mean.perm.importance>1])
+
+```
+
+```{r compare AUC values}
+for(t in seq(taxa)){
+  second <- get(paste0("maxentResults_",taxa[t],"_2013-11-07.csv"))
+    second <- second[grep("average",second$Species),]
+  first <-  get(paste0("maxentResults_",taxa[t],"_2013-10-24.csv"))
+    first <- first[grep("average",first$Species),]
+  
+  output <- d(species=unique(c(as.character(first$Species),as.character(second$Species))), Test.AUC1=NA,Test.AUC2=NA,AUC.diff=NA, taxa=taxa[t])
+    for(s in seq(output$species)){
+      if(length(first$Test.AUC[as.character(first$Species)==as.character(output$species[s])]) != 0) output$Test.AUC1[s] <- first$Test.AUC[as.character(first$Species)==as.character(output$species[s])]
+      if(length(second$Test.AUC[as.character(second$Species)==as.character(output$species[s])]) != 0) output$Test.AUC2[s] <- second$Test.AUC[as.character(second$Species)==as.character(output$species[s])]
+      if(!is.na(output$Test.AUC1[s]) & !is.na(output$Test.AUC2[s])) output$AUC.diff[s] <- output$Test.AUC2[s] - output$Test.AUC1[s]
+    }
+  assign(paste0(taxa[t],"_AUC"),output)
+  
+  rm(output,first,second)
+  
+}
+
+all.taxa <- rbind(plants_AUC,birds_AUC,reptiles_AUC,invertebrates_AUC,mammals_AUC)
+
+taxa.summary <- d(aggregate(all.taxa$Test.AUC2,list(taxa=all.taxa$taxa),length), mean.AUC=aggregate(all.taxa$Test.AUC2,list(taxa=all.taxa$taxa),mean, na.rm=T)[,2], mean.diff = aggregate(all.taxa$AUC.diff,list(taxa=all.taxa$taxa),mean, na.rm=T)[,2], min.diff=aggregate(all.taxa$AUC.diff,list(taxa=all.taxa$taxa),min, na.rm=T)[,2], max.diff=aggregate(all.taxa$AUC.diff,list(taxa=all.taxa$taxa),max, na.rm=T)[,2])
+  colnames(taxa.summary)[2] <- "n"
+  
+```

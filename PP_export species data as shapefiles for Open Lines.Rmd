@@ -1,0 +1,47 @@
+Title
+========================================================
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring web pages (click the **MD** toolbar button for help on Markdown).
+
+When you click the **Knit HTML** button a web page will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r}
+rm(list=ls())
+
+packages(maptools)
+packages(raster)
+
+maxent.data <- read.csv("~/GIS_data/Perth-Peel/Maxent_files/species_data/maxent.data.csv")
+
+clipping.mask <- raster("~/GIS_data/Perth-Peel/environmental data/100m/clipping.mask.tif")
+
+PP.mask <- readShapePoly("C:/Users/awhitehead/Documents/GIS_data/Perth-Peel/DOP/DoP_StrategicAssessmentStudyBoundary_Extended_20121004_GDA94.shp")
+
+
+species.list <- c("Diuris purdiei","Setonix brachyurus","Pseudocheirus occidentalis","Tetraria australiensis", "Anthocercis gracilis","Bettongia penicillata subsp. ogilbyi","Arenaria interpres","Calidris alba","Calidris canutus","Calidris subminuta","Calidris tenuirostris","Charadrius leschenaultii","Limosa limosa","Tringa brevipes","Tringa stagnatilis")
+
+for (s in seq(species.list)){
+species.data <- maxent.data[maxent.data$species==species.list[s],]
+
+
+cell <- cellFromXY(clipping.mask,species.data[,2:3])
+      output <- species.data[!duplicated(cell),]
+
+coordinates(output) <- c("easting","northing")
+
+plot(clipping.mask)
+plot(output,add=T)
+
+
+  writeSpatialShape(output,paste0("G:/Data on Super Computer/GIS_Data/Perth-Peel/zonation/100m/Heather/",species.list[s]))
+rm(output)
+}
+
+```
+
+You can also embed plots, for example:
+
+```{r fig.width=7, fig.height=6}
+plot(cars)
+```
+

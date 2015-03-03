@@ -1,0 +1,47 @@
+Create Carnaby's feeding layer
+========================================================
+
+Combine the feeding investigation regions and standing pines for inclusion in zonation runs as a species
+
+```{r setup}
+rm(list=ls())
+# source("C:/Users/awhitehead/Dropbox/Random R code/tweet me.r")
+
+
+packages(raster)
+packages(rgdal)
+packages(maptools)
+
+source("C:/Users/awhitehead/Dropbox/Random R code/shp2raster.r")
+
+# set projections
+GDA94 <- CRS("+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs")
+GDA94.50 <- CRS("+proj=utm +zone=50 +south +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs")
+
+ibra.clipping.mask <- raster("~/GIS_data/Perth-Peel/mask files/ibra.clipping.mask.tif")
+ibra.pa.clipping.mask <- raster("~/GIS_data/Perth-Peel/mask files/ibra.pa.clipping.mask.tif")
+
+PP.clipping.mask <- raster("~/GIS_data/Perth-Peel/mask files/perth.clipping.mask.tif")
+
+```
+
+
+
+```{r import feeding layers}
+
+cbc.feed.JF <- readShapePoly("~/GIS_data/Perth-Peel/DEC/DEC_Carnabys_FeedAreasRequiringInvestigation_JF_IBRA_20101028.shp",proj4=GDA94.50)
+  cbc.JF.raster <- shp2raster(cbc.feed.JF,ibra.clipping.mask,value=1,bkg=0,label="cbc.feed.JF",save=F)
+
+cbc.feed.SCP <- readShapePoly("~/GIS_data/Perth-Peel/DEC/DEC_Carnabys_FeedAreasRequiringInvestigation_SCP_IBRA_20101028.shp",proj4=GDA94.50)
+  cbc.SCP.raster <- shp2raster(cbc.feed.SCP,ibra.clipping.mask,value=1,bkg=0,label="cbc.feed.SCP",save=F)
+
+pines <- readShapePoly("~/GIS_data/Perth-Peel/DEC/DEC_FPC_Pines_gnangara_pinjar_and_yanchep-standing_2011-12.shp",proj4=GDA94.50)
+  pines.raster <- shp2raster(pines,ibra.clipping.mask,value=1,bkg=0,label="pines",save=F)
+
+ibra.cbc.feeding <- max(pines.raster,cbc.JF.raster, cbc.SCP.raster, filename="//654cw-20990/Amy/GIS_data/Perth-Peel/zonation/100m/ibra/cbc.feeding_IBRA.tif",dataType='INT2U',overwrite=T)
+
+ibra.pa.cbc.feeding <- mask(ibra.cbc.feeding,ibra.pa.clipping.mask, filename="//654cw-20990/Amy/GIS_data/Perth-Peel/zonation/100m/ibra/cbc.feeding_IBRA.PA.tif",dataType='INT2U',overwrite=T)
+
+pp.cbc.feeding <- mask(crop(ibra.cbc.feeding,PP.clipping.mask),PP.clipping.mask, filename="//654cw-20990/Amy/GIS_data/Perth-Peel/zonation/100m/PP/cbc.feeding_PP.tif",dataType='INT2U',overwrite=T)
+
+```

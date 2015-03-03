@@ -1,0 +1,233 @@
+Extract TEC data from polygon to raster
+========================================================
+
+
+
+```{r load_data}
+rm(list=ls())
+# source("C:/Users/awhitehead/Dropbox/Random R code/tweet me.r")
+
+
+packages(raster)
+packages(rgdal)
+packages(maptools)
+
+region.raster <- raster("~/GIS_data/Perth-Peel/environmental data/100m/region.mask.asc")
+  region.raster[!is.na(region.raster)] <- 0
+
+clipping.mask <- raster("~/GIS_data/Perth-Peel/environmental data/100m/clipping.mask.tif")
+  clipping.mask[!is.na(clipping.mask)] <- 0
+
+tec <- raster("~/GIS_data/Perth-Peel/environmental data/100m/tecs/tecs_100m")
+tec.names <- as.data.frame(tec@data@attributes)
+  tec.types <- unique(tec.names$COM_ID)
+
+cec.shape <- readShapePoly("~/GIS_data/Perth-Peel/SEWPaC/PP_EC_data/Cth_EC_gda94tm.shp")
+cec <- raster("~/GIS_data/Perth-Peel/SEWPaC/PP_EC_data/PP_EC")
+cec.names <-  as.data.frame(cec@data@attributes)
+  cec.types <- unique(cec.names$COM_NAM)
+
+```
+
+
+```{r intersect ECs}
+for(i in seq(cec.types)){
+  cec.name <- cec.names$COM_ID[i]    
+  IsBecomes.cec <- d(is=cec.names$ID,becomes=NA)
+    IsBecomes.cec[i,2] <- 0.5
+  c <- reclassify(cec,IsBecomes.cec)
+  
+  for (j in seq(tec.types)){
+    tec.name <- tec.names$COM_NAME[j]
+    IsBecomes.tec <- d(is=tec.names$ID,becomes=NA)
+    IsBecomes.tec[j,2] <- 1
+  t <- reclassify(tec,IsBecomes.tec)
+    
+    y <- sum(c,t,na.rm=T)
+    if(max(y@data@values) == 1.5) {
+      cat(paste0("cec",i,"_","tec",j),"TRUE; ","\n")
+      output <- mask(merge(c,t,region.raster),region.raster,filename=paste0("~/GIS_data/Perth-Peel/environmental data/100m/tecs/merged/cec",i,"_","tec",j,".tif"), overwrite=T)
+      assign(paste0("cec",i,"_","tec",i),output)
+      plot(output,main=paste0("cec",i,"_","tec",j),zlim=c(0,1.5))
+      
+      rm(output,t,y)
+    } else cat("FALSE ")
+    
+  }
+  rm(c)
+}
+
+
+
+```
+
+The list of CECs that intersect with TECs:
+9 - 19
+8 - 7,30
+7 - 3,22
+6 - 1,4,16,17,20,23,26,27,36
+5 - 6,7,8,10,15,22
+4 - 3,6,8,11,13,15
+3 - 5,28,29,33
+2 - 2,6,7,8,9,10,11,13,14,15,18,28
+1 - 1,21,36
+
+  - 12,24,25,31,32,34,35
+
+
+```{r extract tec by attributes}
+
+for(i in seq(tec.names$COM_ID)){
+  
+  community <- tec.names$COM_ID[i]
+  
+  IsBecomes <- d(is=tec.names$ID,becomes=NA)
+    IsBecomes[i,2] <- 1
+  if(i==4|i==16) {
+    IsBecomes[c(4,16),2] <- 1
+    community <- "SCP19"
+    } else IsBecomes[i,2] <- 1
+  
+  r <- reclassify(tec,IsBecomes)
+  community <- gsub(" ","_",community)
+  names(r) <- community
+  if(extent(r)!=extent(region.raster)) {
+    cat("\n", "Resampling",community )
+    r <- resample(r,region.raster)
+    }
+  r <- mask(merge(r, region.raster),clipping.mask)
+  
+  plot(r, main=community)
+  writeRaster(r, paste0("~/GIS_data/Perth-Peel/zonation/100m/",community,".tif"), format="GTiff",overwrite=T)
+  cat("\n","Writing",as.character(community), "TEC to raster")
+}
+
+
+```
+
+```{r extract cec by attributes}
+
+for(i in seq(cec.types)){
+  cec.name <- cec.names$COM_NAME[i]    
+  IsBecomes.cec <- d(is=cec.names$ID,becomes=NA)
+    IsBecomes.cec[i,2] <- 1
+  c <- reclassify(cec,IsBecomes.cec)
+  
+  cec.name <- gsub(" ","_",cec.name)
+  names(c) <- cec.name
+  if(extent(c)!=extent(region.raster)) {
+    cat("\n", "Resampling",cec.name )
+    c <- resample(c,region.raster)
+    }
+  c <- mask(merge(c, region.raster),clipping.mask)
+  
+  plot(c, main=cec.name)
+  writeRaster(c, paste0("~/GIS_data/Perth-Peel/zonation/100m/",cec.name,".tif"), format="GTiff",overwrite=T)
+  cat("\n","Writing",as.character(cec.name), "CEC to raster")
+  rm(c)
+  gc()
+}
+
+
+```
+
+
+```{r create raster}
+create.raster <- function (s, mask.raster, label, value, transform=TRUE) {
+    
+   if(transform==TRUE) {
+     proj4string(s) <- "+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs"
+    s <- spTransform(s, CRS("+proj=utm +zone=50 +south +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs"))
+     }
+    
+  r <- rasterize(s,mask.raster)
+    r[!is.na(r)] <- value
+    r <- mask(merge(r,mask.raster),mask.raster)
+    names(r) <- label
+    
+    plot(r, main=label)
+    
+   writeRaster(r,paste0(output.directory,label), format="GTiff", overwrite=T)
+    return(r)
+  }
+
+```
+
+Extract the EPA Biodiversity 3 layer into two rasters to include in the zonation analyses as species.
+
+```{r extract epa.bio3 by attributes}
+
+epa.bio3 <- readShapePoly("~/GIS_data/Perth-Peel/EPA/EPA_Biodiversity3_20130322.shp")
+
+output.directory <- "~/GIS_Data/Perth-Peel/zonation/100m/"
+  
+group <- unique(epa.bio3$Pcnt_group)
+
+  epa.bio3.30 <- create.raster(epa.bio3[epa.bio3$Pcnt_group==group[1],], clipping.mask, label="EPA_Biodiversity3_30pct", value=1, transform=FALSE)
+
+epa.bio3.10 <- create.raster(epa.bio3[epa.bio3$Pcnt_group==group[2],], clipping.mask, label="EPA_Biodiversity3_10pct", value=1, transform=FALSE)
+  
+```
+
+```{r extract ramsar & banksia woodland by attributes}
+
+ramsar <- readShapePoly("~/GIS_data/Perth-Peel/SEWPaC/PP_MNES_extract/PP_Ramsar_clip.shp")
+
+output.directory <- "~/GIS_Data/Perth-Peel/zonation/100m/"
+  
+ramsar.group <- unique(ramsar$RAMSAR_NAM)
+  ramsar.labels <- gsub(" ","_",ramsar.group)
+  
+for(i in seq(ramsar.group)){
+  r <- create.raster(ramsar[ramsar$RAMSAR_NAM==ramsar.group[i],], clipping.mask, label=ramsar.labels[i], value=1, transform=TRUE)
+  assign(names(r),r)
+}
+```
+
+```{r Banksi woodland}
+nvis_mvs <- raster("~/GIS_data/Perth-Peel/environmental data/100m/ibra/vegetation/ibra_nvis_mvs")
+  nvis_mvs.names <- as.data.frame(nvis_mvs@data@attributes)
+nvis_mvs_classes <- read.csv("~/GIS_data/Perth-Peel/environmental data/100m/ibra/vegetation/nvis_mvs_classes.csv")
+  nvis_mvs.names$classes <- nvis_mvs_classes$mvs_name[which(nvis_mvs_classes$mvs_num %in% nvis_mvs.names$ID)]
+  nvis_mvs.names$woody <- nvis_mvs_classes$woody[which(nvis_mvs_classes$mvs_num %in% nvis_mvs.names$ID)]
+
+veg_types <- c("Banksia woodlands")
+  classes <- grep(veg_types[1],nvis_mvs.names$classes)
+  IsBecomes <- d(is=nvis_mvs.names$ID,becomes=NA)
+    IsBecomes$becomes[classes] <- 1
+    
+  r <- reclassify(nvis_mvs,IsBecomes)
+  names(r) <- veg_types[1]
+  plot(r, main=veg_types[1])
+  
+Banksia_woodlands <- mask(merge(resample(r,region.raster),region.raster),clipping.mask,filename="~/GIS_data/Perth-Peel/zonation/100m/Banksia_woodland.tif", overwrite=T,format="GTiff")
+  
+
+  
+```
+
+```{r additional rasters for inclusion as species}
+
+scenario.files <- dir("~/GIS_data/Perth-Peel/environmental data/100m/ibra/scenarios as species/", pattern=".tif$",recursive=T,full.names=T)
+
+for(i in seq(scenario.files)){
+  r <- raster(scenario.files[i])
+    r[r>0] <- 1
+  if(extent(r) != extent(clipping.mask)){
+    r <- resample(r,clipping.mask)
+    cat("Resampling", names(r),"\n")
+  }
+  r <- mask(merge(r,clipping.mask),clipping.mask,filename=paste0("~/GIS_data/Perth-Peel/zonation/100m/",names(r),".tif"), overwrite=T)
+  plot(r, main=names(r))
+  assign(names(r),r)
+  rm(r) 
+}
+
+PP_Ramsar_clip[PP_Ramsar_clip!=1] <- NA
+#ramsar.buffers <- buffer(PP_Ramsar_clip, width=200,filename="~/GIS_data/Perth-Peel/zonation/100m/ramsar.buffers.tif", overwrite=T)
+
+PP_Ramsar_clip[PP_Ramsar_clip==1] <- 0
+ramsar_buffer.only <- mask(merge(PP_Ramsar_clip,ramsar.buffers,clipping.mask),clipping.mask, filename="~/GIS_data/Perth-Peel/zonation/100m/ramsar_buffer.only.tif")
+  
+
+```

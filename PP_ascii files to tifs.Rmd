@@ -1,0 +1,40 @@
+Change all Maxent files from ascii to tif
+==============================================
+
+
+
+```{r convert_data}
+library(raster)
+
+tifs.for.zonation <- "TRUE"
+
+maxent.dir <- c("~/GIS_data/Perth-Peel/Maxent_files/output/09July13/")
+zonation.dir <- c("~/GIS_data/Perth-Peel/zonation/100m/")
+
+extant_veg.mask <- raster("~/GIS_data/Perth-Peel/environmental data/100m/extant_veg.mask.tif")
+  plot(extant_veg.mask)
+
+asc.files <- dir(maxent.dir, pattern=".asc$")
+
+convert.to.tif <- function (asc.file) {
+  r <- raster(paste0(maxent.dir,asc.file))
+  species <- names(r)
+  
+  # round to create integer raster and mask by extant vegetation & tecs
+  if(tifs.for.zonation == "TRUE") r <- mask(round(r*1000,0),extant_veg.mask)
+  if(tifs.for.zonation == "FALSE") r <- round(r*1000,0)
+  
+  if(tifs.for.zonation == "TRUE") writeRaster(r,paste0(zonation.dir,species,".tif"), overwrite=T)
+  if(tifs.for.zonation == "FALSE") writeRaster(r,paste0(maxent.dir,"/tifs/",species,".tif"), overwrite=T)
+  
+  cat("converted",species, "to tif","\n")
+}
+
+lapply(asc.files,convert.to.tif)
+
+
+
+lapply()
+
+
+```

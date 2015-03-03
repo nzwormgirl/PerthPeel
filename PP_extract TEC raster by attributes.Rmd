@@ -1,0 +1,279 @@
+Extract TEC data from polygon to raster
+========================================================
+
+
+
+```{r load_data}
+rm(list=ls())
+# source("C:/Users/awhitehead/Dropbox/Random R code/tweet me.r")
+
+
+packages(raster)
+packages(rgdal)
+packages(maptools)
+
+output.directory <- "//654cw-20990/Amy/GIS_Data/Perth-Peel/zonation/100m/PP/"
+
+region.raster <- raster("~/GIS_data/Perth-Peel/mask files/perth.mask.tif")
+  region.raster[!is.na(region.raster)] <- 0
+
+clipping.mask <- raster("~/GIS_data/Perth-Peel/mask files/perth.clipping.mask.tif")
+  clipping.mask[!is.na(clipping.mask)] <- 0
+
+ibra.clipping.mask <- raster("~/GIS_data/Perth-Peel/mask files/ibra.clipping.mask.tif")
+  ibra.clipping.mask[!is.na(ibra.clipping.mask)] <- 0
+
+ibra.pa.clipping.mask <- raster("~/GIS_data/Perth-Peel/mask files/ibra.pa.clipping.mask.tif")
+  ibra.pa.clipping.mask[!is.na(ibra.pa.clipping.mask)] <- 0
+
+
+
+```
+
+```{r create raster}
+create.raster <- function (s, mask.raster, label, value, transform=TRUE) {
+    
+   if(transform==TRUE) {
+     proj4string(s) <- "+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs"
+    s <- spTransform(s, CRS("+proj=utm +zone=50 +south +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs"))
+     }
+    
+  r <- rasterize(s,mask.raster)
+    r[!is.na(r)] <- value
+    r <- mask(merge(r,mask.raster),mask.raster)
+    names(r) <- label
+    
+    plot(r, main=label)
+    
+   writeRaster(r,paste0(output.directory,label), format="GTiff", overwrite=T)
+    return(r)
+  }
+
+```
+
+```{r extract tec by attributes}
+tec <- raster("~/GIS_data/Perth-Peel/environmental data/100m/tecs/tecs_100m")
+tec.names <- as.data.frame(tec@data@attributes)
+
+for(i in seq(tec.names$COM_ID)){
+  
+  community <- tec.names$COM_ID[i]
+  
+  IsBecomes <- d(is=tec.names$ID,becomes=NA)
+    IsBecomes[i,2] <- 1
+  
+  r <- reclassify(tec,IsBecomes)
+  community <- gsub(" ","_",community)
+  names(r) <- community
+  if(extent(r)!=extent(region.raster)) {
+    cat("\n", "Resampling",community )
+    r <- resample(r,region.raster)
+    }
+  r <- mask(merge(r, region.raster),clipping.mask)
+  assign(community,r)
+  
+  plot(r, main=community)
+  writeRaster(r, paste0(output.directory,community,"_PP.tif"), format="GTiff",overwrite=T)
+  cat("\n","Writing",as.character(community), "TEC to raster")
+}
+
+
+```
+
+
+
+```{r extract cec by attributes}
+cec.shape <- readShapePoly("~/GIS_data/Perth-Peel/SEWPaC/PP_EC_data/Cth_EC_gda94tm.shp")
+cec <- raster("~/GIS_data/Perth-Peel/SEWPaC/PP_EC_data/PP_EC")
+cec.names <-  as.data.frame(cec@data@attributes)
+  cec.types <- unique(cec.names$COM_NAM)
+
+
+for(i in seq(cec.types)){
+  cec.name <- cec.names$COM_NAME[i]    
+  IsBecomes.cec <- d(is=cec.names$ID,becomes=NA)
+    IsBecomes.cec[i,2] <- 1
+  c <- reclassify(cec,IsBecomes.cec)
+  
+  cec.name <- gsub(" ","_",cec.name)
+  names(c) <- cec.name
+  if(extent(c)!=extent(region.raster)) {
+    cat("\n", "Resampling",cec.name )
+    c <- resample(c,region.raster)
+    }
+  c <- mask(merge(c, region.raster),clipping.mask)
+  assign(cec.name,c)
+  
+  plot(c, main=cec.name)
+  writeRaster(c, paste0(output.directory,cec.name,"_PP.tif"), format="GTiff",overwrite=T)
+  cat("\n","Writing",as.character(cec.name), "CEC to raster")
+  rm(c)
+  gc()
+}
+
+
+```
+
+```{r merge cec & tec layers together}
+EC.list <- read.csv("~/GIS_data/Perth-Peel/species data/CEC_TEC_matches.csv")
+
+# clayplans
+Claypans_of_the_Swan_Coastal_Plain[Claypans_of_the_Swan_Coastal_Plain>0] <- 0.5
+claypans <- sum(stack(Claypans_of_the_Swan_Coastal_Plain,SCP09,SCP07,SCP08,SCP10a))
+claypans[claypans>1] <- 1
+writeRaster(claypans,paste0(output.directory,"claypans_PP.tif"),overwrite=T)
+
+#caves
+Aquatic_Root_Mat_Community_in_Caves_of_the_Swan_Coastal_Plain[Aquatic_Root_Mat_Community_in_Caves_of_the_Swan_Coastal_Plain>0] <- 0.5
+
+caves <- max(stack(Aquatic_Root_Mat_Community_in_Caves_of_the_Swan_Coastal_Plain,CAVES_SCP01))
+writeRaster(caves,paste0(output.directory,"caves_PP.tif"),overwrite=T)
+
+# limestone
+Shrublands_and_Woodlands_on_Muchea_Limestone_of_the_Swan_Coastal_Plain[Shrublands_and_Woodlands_on_Muchea_Limestone_of_the_Swan_Coastal_Plain>0] <- 0.5
+
+limestone <- max(stack(Shrublands_and_Woodlands_on_Muchea_Limestone_of_the_Swan_Coastal_Plain,Muchea_Limestone))
+  writeRaster(limestone,paste0(output.directory,"limestone_PP.tif"),overwrite=T)
+
+# shrub & woodlands
+
+Shrublands_and_Woodlands_of_the_eastern_Swan_Coastal_Plain[Shrublands_and_Woodlands_of_the_eastern_Swan_Coastal_Plain > 0] <- 0.5
+
+shrublands <- max(stack(Shrublands_and_Woodlands_of_the_eastern_Swan_Coastal_Plain,SCP20c))
+  writeRaster(shrublands,paste0(output.directory,"Shrublands_and_Woodlands_of_the_eastern_Swan_Coastal_Plain.SCP20c_PP.tif"),overwrite=T)
+
+#sedgelands
+Sedgelands_in_Holocene_dune_swales_of_the_southern_Swan_Coastal_Plain[Sedgelands_in_Holocene_dune_swales_of_the_southern_Swan_Coastal_Plain > 0] <- 0.5
+
+sedgelands <- max(stack(Sedgelands_in_Holocene_dune_swales_of_the_southern_Swan_Coastal_Plain, SCP19a,SCP19b))
+  writeRaster(sedgelands,paste0(output.directory,"sedgelands_PP.tif"),overwrite=T)
+
+#Cory Kingia woodlands
+cory_kingia.cec<- get("Corymbia_calophylla_-_Kingia_australis_woodlands_on_heavy_soils_of_the_Swan_Coastal_Plain")
+
+cory_kingia.cec[cory_kingia.cec > 0] <- 0.5
+
+cory.kingia <- max(stack(cory_kingia.cec,SCP3a))
+  writeRaster(cory.kingia,paste0(output.directory,"Corymbia_Kingia_PP.tif"),overwrite=T)
+
+#Cory Xanthorrhoea
+cory.xant.cec <- get("Corymbia_calophylla_-_Xanthorrhea_preissii_woodlands_and_shrublands_of_the_Swan_Coastal_Plain")
+
+cory.xant.cec[cory.xant.cec>0] <- 0.5
+
+cory.xant <- max(stack(cory.xant.cec,SCP3c))
+  writeRaster(cory.xant,paste0(output.directory,"Corymbia_Xanthorrhoea_PP.tif"),overwrite=T)
+
+#tumulus
+tumulus.cec <- get("Assemblages_of_plants_and_invertebrate_animals_of_tumulus_(organic_mound)_springs_of_the_Swan_Coastal_Plain")
+  tumulus.cec[tumulus.cec > 0 ] <- 0.5
+tumulus <- max(stack(tumulus.cec,Mound_Springs_SCP))
+  writeRaster(tumulus,paste0(output.directory,"Mound_Springs_PP.tif"),overwrite=T)
+
+# thrombolites
+clifton.cec <- get("Thrombolite_(microbialite)_Community_of_a_Coastal_Brackish_Lake_(Lake_Clifton)")
+  clifton.cec[clifton.cec >0] <- 0.5
+
+clifton.tec <- get("Clifton-microbialite")
+
+clifton <- max(stack(clifton.cec, clifton.tec))
+  writeRaster(clifton,paste0(output.directory,"Lake_Clifton_PP.tif"),overwrite=T)
+
+#remove the intermdiate rasters
+setwd(output.directory)
+file.remove(c("Claypans_of_the_Swan_Coastal_Plain_PP.tif","SCP09_PP.tif","SCP07_PP.tif","SCP08_PP.tif","SCP10a_PP.tif","Aquatic_Root_Mat_Community_in_Caves_of_the_Swan_Coastal_Plain_PP.tif","CAVES_SCP01_PP.tif","Shrublands_and_Woodlands_on_Muchea_Limestone_of_the_Swan_Coastal_Plain_PP.tif","Muchea_Limestone_PP.tif","Shrublands_and_Woodlands_of_the_eastern_Swan_Coastal_Plain_PP.tif","SCP20c_PP.tif","Sedgelands_in_Holocene_dune_swales_of_the_southern_Swan_Coastal_Plain_pp.tif", "SCP19a_PP.tif","SCP19b_pp.tif","SCP3a_PP.tif","Corymbia_calophylla_-_Kingia_australis_woodlands_on_heavy_soils_of_the_Swan_Coastal_Plain_PP.tif","SCP3c_PP.tif","Corymbia_calophylla_-_Xanthorrhea_preissii_woodlands_and_shrublands_of_the_Swan_Coastal_Plain_PP.tif","Mound_Springs_SCP_PP.tif","Assemblages_of_plants_and_invertebrate_animals_of_tumulus_(organic_mound)_springs_of_the_Swan_Coastal_Plain_PP.tif","Thrombolite_(microbialite)_Community_of_a_Coastal_Brackish_Lake_(Lake_Clifton)_PP.tif","Clifton-microbialite_PP.tif"))
+
+```
+
+
+Extract the EPA Biodiversity 3 layer into two rasters to include in the zonation analyses as species.
+
+```{r extract epa.bio3 by attributes}
+
+epa.bio3 <- readShapePoly("~/GIS_data/Perth-Peel/EPA/EPA_Biodiversity3_20130322.shp")
+  
+group <- unique(epa.bio3$Pcnt_group)
+
+  epa.bio3.30 <- create.raster(epa.bio3[epa.bio3$Pcnt_group==group[1],], clipping.mask, label="EPA_Biodiversity3_30pct_PP", value=1, transform=FALSE)
+
+epa.bio3.10 <- create.raster(epa.bio3[epa.bio3$Pcnt_group==group[2],], clipping.mask, label="EPA_Biodiversity3_10pct_PP", value=1, transform=FALSE)
+  
+```
+
+
+```{r extract ramsar}
+
+ramsar <- readShapePoly("~/GIS_data/Perth-Peel/SEWPaC/PP_MNES_extract/PP_Ramsar_clip.shp")
+  
+ramsar.group <- unique(ramsar$RAMSAR_NAM)
+  ramsar.labels <- paste0(gsub(" ","_",ramsar.group),"_PP")
+  
+for(i in seq(ramsar.group)){
+  r <- create.raster(ramsar[ramsar$RAMSAR_NAM==ramsar.group[i],], clipping.mask, label=ramsar.labels[i], value=1, transform=TRUE)
+  assign(names(r),r)
+}
+```
+
+```{r EPA conservation category wetlands}
+# category conservation wetlands minus the ramsar sites
+epa.bio2 <- readShapePoly("~/GIS_Data/Perth-Peel/EPA/EPA_Biodiversity2_20130322.shp")
+
+r.epa.bio2 <- rasterize(epa.bio2,region.raster)
+    r.epa.bio2[!is.na(r.epa.bio2)] <- 1
+    r.epa.bio2 <- mask(merge(r.epa.bio2,region.raster),clipping.mask)
+
+EPA2_CCW <- r.epa.bio2 - Becher_Point_Wetlands_PP
+  EPA2_CCW <- EPA2_CCW - Peel.Yalgorup_System_PP
+  EPA2_CCW <- EPA2_CCW - Forrestdale_and_Thomsons_Lakes_PP
+  EPA2_CCW[EPA2_CCW==-1] <- 0
+
+plot(EPA2_CCW, main="EPA2_CCW")
+
+writeRaster(EPA2_CCW,paste0(output.directory,"EPA2_CCW_PP.tif"), overwrite=T)
+  
+# EPP Lakes
+EPA2_EPP <- create.raster(epa.bio2[epa.bio2$symbol=="EPP Lake",],clipping.mask, label="EPA2_EPP_PP", value=1, transform=FALSE)
+
+swamp.tortoise <- create.raster(epa.bio2[!is.na(epa.bio2$W_Swamp_To),],clipping.mask, label="Pseudemydura_umbrina_PP", value=1, transform=FALSE)
+
+```
+
+```{r Banksi woodland}
+# nvis_mvs <- raster("~/GIS_data/Perth-Peel/environmental data/100m/ibra/vegetation/ibra_nvis_mvs")
+#   nvis_mvs.names <- as.data.frame(nvis_mvs@data@attributes)
+# nvis_mvs_classes <- read.csv("~/GIS_data/Perth-Peel/environmental data/100m/ibra/vegetation/nvis_mvs_classes.csv")
+#   nvis_mvs.names$classes <- nvis_mvs_classes$mvs_name[which(nvis_mvs_classes$mvs_num %in% nvis_mvs.names$ID)]
+#   nvis_mvs.names$woody <- nvis_mvs_classes$woody[which(nvis_mvs_classes$mvs_num %in% nvis_mvs.names$ID)]
+# 
+# veg_types <- c("Banksia woodlands")
+#   classes <- grep(veg_types[1],nvis_mvs.names$classes)
+#   IsBecomes <- d(is=nvis_mvs.names$ID,becomes=NA)
+#     IsBecomes$becomes[classes] <- 1
+#     
+#   r <- reclassify(nvis_mvs,IsBecomes)
+#   names(r) <- veg_types[1]
+#   plot(r, main=veg_types[1])
+
+# Banksia_woodlands <- mask(merge(resample(r,region.raster),region.raster),clipping.mask,filename="~/GIS_data/Perth-Peel/zonation/100m/Banksia_woodland.tif", overwrite=T,format="GTiff")
+
+dec.banksia <- readShapePoly("~/GIS_Data/Perth-Peel/DEC/SCP_Rem_Wdl_DSM02.shp")
+
+banksia.raster <- create.raster(dec.banksia, clipping.mask, label="Banksia_woodland_PP", value=1, transform=TRUE)
+
+output.directory <- "//654cw-20990/Amy/GIS_Data/Perth-Peel/zonation/100m/ibra/"
+ibra.banksia.raster <- create.raster(dec.banksia, ibra.clipping.mask, label="Banksia_woodland_IBRA", value=1, transform=TRUE)
+
+ibra.pa.banksia.raster <- create.raster(dec.banksia, ibra.pa.clipping.mask, label="Banksia_woodland_IBRA.PA.tif", value=1, transform=TRUE)
+  
+```
+
+```{r saltmarshes}
+output.directory <- "//654cw-20990/Amy/GIS_Data/Perth-Peel/zonation/100m/PP/"
+
+saltmarsh <- readShapePoly("~/GIS_data/Perth-Peel/SEWPac/PP_EC_data/P_P_saltmarsh_ec_OsEstuaries_gda94tm.shp")
+
+saltmarsh.raster <- create.raster(saltmarsh, clipping.mask, label="EC_saltmarsh_PP", value=1, transform=FALSE)
+  
+
+```
+

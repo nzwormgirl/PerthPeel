@@ -1,0 +1,359 @@
+---
+title: "Figures for CL Strategic Framework paper"
+author: "Amy Whitehead"
+date: "Friday, November 14, 2014"
+output: html_document
+---
+
+
+```{r set up}
+rm(list=ls())
+packages(raster)
+packages(maptools)
+packages(colorRamps)
+packages(fields)
+packages(RColorBrewer)
+
+  GDA94.50 <- CRS("+proj=utm +zone=50 +south +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs")
+  GDA94 <- CRS("+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs")
+
+# computer
+# computer <- "~"
+computer <- "//654cw-20990/Amy"
+
+# define paths for input and output files
+input_path <- paste0(computer,'/GIS_data/Perth-Peel/zonation/100m/')
+output_path <- paste0(computer,'/GIS_data/Perth-Peel/zonation/100m/Conservation_Letters/output/')
+
+# date of the output files
+#   analysis.date <- '20140728' # remember to update to correct date
+  analysis.date <- '20140924'
+
+  save.plots <- TRUE
+
+scenario.files <- dir(paste0(input_path,"scenarios/final/"),pattern=".tif$",full.names=T)
+
+PP.mask <- raster("~/GIS_Data/Perth-Peel/mask files/perth.mask.tif")
+PP.clipping.mask <- raster("~/GIS_Data/Perth-Peel/mask files/perth.clipping.mask.tif")
+PP.shp <- readShapePoly("~/GIS_data/Perth-Peel/DOP/DoP_StrategicAssessmentStudyBoundary_Extended_20121004_GDA94.shp", proj4=GDA94)
+  PP.shp <- spTransform(PP.shp,GDA94.50)
+
+zonation_priority <- raster(paste0(output_path,"CL_baseline_",analysis.date,".CAZ_E.rank.asc"))
+
+scenario.files <- dir(paste0(input_path,"scenarios/final/"),pattern=".tif$",full.names=T)
+      scenarios <- stack(scenario.files[!grepl("offsets3|offsets4",scenario.files)])
+```
+
+```{r colour palettes}
+map.background <- "whitesmoke"
+
+pa.colours <- d(label=c("Level 3","Level 2","Level 3","Priority protected","Priority unprotected"),colour=c("#78c679","#31a354","#006837","#a6611a","grey40"),stringsAsFactors = F)
+
+dev.colours <- d(label=c("Existing","Proposed","Cleared","Retained"),colour=c("grey60","#fdae61","#d7191c","#2c7bb6"),stringsAsFactors = F)
+
+# colours for the curves plots - Heini
+# col.all <- c('dark grey', 'skyblue2', 'skyblue4', 'darkolivegreen3', 'darkolivegreen4')
+# col.nonmnes <- c('lightskyblue4', 'skyblue2', 'steelblue', 'dodgerblue3', 'dodgerblue4')
+# col.mnes <- c('rosybrown4', 'lightcoral', 'indianred', 'brown1', 'red4')
+
+# colours for the curves plots - Amy
+col.all <- c("grey60",brewer.pal(4,"Set1"))
+col.nonmnes <- brewer.pal(9,"Blues")[4:9]
+col.mnes <- brewer.pal(9,"Reds")[4:9]
+
+pri.col = c('blue', 'turquoise', 'yellow', 'orange', 'red')
+pa.col = c('palegreen2','palegreen3', 'palegreen4')
+pri.breaks = c(0,0.7,0.85,0.9,0.95,1)
+leg.labels <- c("top 5%","top 10%","top 15%","top 30%","rest")
+
+```
+
+```{r, echo=FALSE}
+dev.cum <- scenarios[[which(names(scenarios) %in% "scenario9_cumulative.development"==TRUE)]]
+
+r <- dev.cum
+  r[r>2] <- NA
+  r[!is.na(r)] <-1
+dev.pri <- mask(zonation_priority,r)
+
+
+png(paste0(output_path,"cumulative_development_conflicts.png"),height=20,width=15,units="cm",res=300, bg="transparent",pointsize=14)
+     par(mar=c(0.25,1.5,1.25,2), oma=c(0,0,0,0))
+     plot(PP.clipping.mask,col=map.background,legend=F,box=F,axes=F)
+      plot(dev.pri,col=c("grey30",pri.col),breaks=c(-1,pri.breaks),legend=F,add=T)
+      plot(PP.shp, add=T, lwd=0.5)
+    legend('topright', inset=c(-0.250,0), leg.labels, col="black",fill=rev(pri.col), bty="n", title=paste0("Conservation priority","\n","within development zones"), cex=1, xpd=NA)
+dev.off()
+
+
+png(paste0(output_path,"cumulative_development.png"),height=20,width=15,units="cm",res=300, bg="transparent",pointsize=14)
+     par(mar=c(0.25,1.5,1.25,2), oma=c(0,0,0,0))
+     plot(PP.clipping.mask,col=map.background,legend=F,box=F,axes=F)
+      plot(dev.cum,col="grey30",zlim=c(2,2),legend=F,add=T)
+      plot(PP.shp, add=T, lwd=0.5)
+dev.off()
+
+png(paste0(output_path,"conservation_priority.png"),height=20,width=15,units="cm",res=300, bg="transparent",pointsize=14)
+     par(mar=c(0.25,1.5,1.25,2), oma=c(0,0,0,0))
+     plot(zonation_priority,col=pri.col,breaks=pri.breaks,legend=F,axes=T,box=T)
+      plot(PP.shp, add=T, lwd=0.5)
+    legend('topright', inset=c(-0.250,0), leg.labels, col="black",fill=rev(pri.col), bty="n", title="Conservation priority", cex=1, xpd=NA)
+dev.off()
+
+
+png(paste0(output_path,"priority_development_conflict.png"),height=10,width=15,units="cm",res=300, bg="transparent",pointsize=12)
+  par(mfrow=c(1,3),mar=c(4.5,0.25,1.25,0.5), oma=c(0,0,0,0))
+    
+    plot(zonation_priority,col=pri.col,breaks=pri.breaks,legend=F,axes=F,box=F)
+      plot(PP.shp, add=T, lwd=0.5)
+      mtext("a)",side=3,line=-0.5,adj=0,cex=0.8)
+ 
+    plot(PP.clipping.mask,col=map.background,legend=F,box=F,axes=F)
+      plot(dev.cum,col="grey30",zlim=c(2,2),legend=F,add=T)
+      plot(PP.shp, add=T, lwd=0.5)
+      mtext("b)",side=3,line=-0.5,adj=0,cex=0.8)
+
+legend('bottom', inset=c(0,-0.18), c(leg.labels,"Development"), col="black",fill=c(rev(pri.col),"grey30"), bty="n", title="Conservation priority", cex=1, xpd=NA, horiz=T,title.adj = 0)
+    
+    plot(PP.clipping.mask,col=map.background,legend=F,box=F,axes=F)
+      plot(dev.pri,col=c("grey30",pri.col),breaks=c(-1,pri.breaks),legend=F,add=T)
+      plot(PP.shp, add=T, lwd=0.5)
+      mtext("c)",side=3,line=-0.5,adj=0,cex=0.8)
+        
+dev.off()
+
+
+png(paste0(output_path,"priority_conflict.png"),height=15,width=15,units="cm",res=300, bg="transparent",pointsize=10)
+  par(mfrow=c(1,2),mar=c(4.5,0.25,1.25,0.5), oma=c(0,0,0,0))
+    
+    plot(zonation_priority,col=pri.col,breaks=pri.breaks,legend=F,axes=F,box=F)
+      plot(PP.shp, add=T, lwd=0.5)
+      mtext("a)",side=3,line=-0.5,adj=0)
+
+legend('bottomleft', inset=c(0,-0.15), c(leg.labels,"Development"), col="black",fill=c(rev(pri.col),"grey30"), bty="n", title="Conservation priority", cex=1, xpd=NA, horiz=T,title.adj = 0)
+    
+    plot(PP.clipping.mask,col=map.background,legend=F,box=F,axes=F)
+      plot(dev.pri,col=c("grey30",pri.col),breaks=c(-1,pri.breaks),legend=F,add=T)
+      plot(PP.shp, add=T, lwd=0.5)
+      mtext("b)",side=3,line=-0.5,adj=0)
+        
+dev.off()
+
+```
+
+```{r priority conflict inset maps}
+
+# interest.points <- data.frame(x=c(414801.7, 423401.2, 404332.6, 392368.0),y=c(6497004, 6479057, 6426712, 6391192))
+interest.points <- data.frame(x=c(383394.5, 423775.1, 383016.2, 397850.3),y=c(6497378, 6478683, 6429329, 6389553))
+
+png(paste0(output_path,"priority_conflict_insets.png"),height=14,width=17.5,units="cm",res=300, bg="transparent",pointsize=10)
+lay.out <- layout(matrix(c(1,1,1,1,1,2,2,2,2,2,3,4,5,6,7),5,3,byrow=F),widths = c(0.4,0.4,0.2))
+
+par(mar=c(0,0,0,0), oma=c(0,0.5,0,0))
+    
+    plot(zonation_priority,col=c("grey",pri.col[2:5]),breaks=pri.breaks,legend=F,axes=F,box=F)
+      plot(PP.shp, add=T, lwd=0.5)
+      mtext("A",side=3,line=-1.5,adj=0, font=2)
+      scalebar(10000,xy=c(444785.1-15000,6357750),type="line",label = "10 km")
+   
+    plot(zonation_priority,col=map.background,legend=F,box=F,axes=F)
+      plot(dev.pri,col=c("grey",pri.col[2:5]),breaks=c(pri.breaks),legend=F,add=T,zlim=c(0,1))
+#       plot(zonation_priority,col=c("grey",pri.col[2:5]),breaks=pri.breaks,legend=F,add=T)
+      plot(PP.shp, add=T, lwd=0.5)
+      mtext("B",side=3,line=-1.5,adj=0, font=2)
+      text(x=interest.points$x[1],y=interest.points$y[1],"1",font = 2,cex=1.5)
+      text(x=interest.points$x[2],y=interest.points$y[2],"2",font = 2,cex=1.5)
+      text(x=interest.points$x[3],y=interest.points$y[3],"3",font = 2,cex=1.5)
+      text(x=interest.points$x[4],y=interest.points$y[4],"4",font = 2,cex=1.5)
+    
+  par(mar=c(1,1,1,1)) 
+  image(PP.clipping.mask,col=map.background,ann=F,axes=F,xlim=c(interest.points$x[1]-6000,interest.points$x[1]+6000),ylim=c(interest.points$y[1]-6000,interest.points$y[1]+6000),asp=1)
+
+    image(dev.pri,col=c("grey",pri.col[2:5]),breaks=c(pri.breaks),ann=F,add=T,asp=1)
+    box()
+    mtext("1",side=3,line=-1.5,adj=0.05)
+
+  image(PP.clipping.mask,col=map.background,ann=F,axes=F,xlim=c(interest.points$x[2]-6000,interest.points$x[2]+6000),ylim=c(interest.points$y[2]-6000,interest.points$y[2]+6000),asp=1)
+    image(dev.pri,col=c("grey",pri.col[2:5]),breaks=c(pri.breaks),ann=F,add=T,asp=1)
+    box()
+    mtext("2",side=3,line=-1.5,adj=0.05)
+
+  image(PP.clipping.mask,col=map.background,ann=F,axes=F,xlim=c(interest.points$x[3]-6000,interest.points$x[3]+6000),ylim=c(interest.points$y[3]-6000,interest.points$y[3]+6000),asp=1)
+    image(dev.pri,col=c("grey",pri.col[2:5]),breaks=c(pri.breaks),ann=F,add=T,asp=1)
+    plot(PP.shp, add=T, lwd=0.5)
+    box()
+    mtext("3",side=3,line=-1.5,adj=0.05)
+
+  image(PP.clipping.mask,col=map.background,ann=F,axes=F,xlim=c(interest.points$x[4]-6000,interest.points$x[4]+6000),ylim=c(interest.points$y[4]-6000,interest.points$y[4]+6000),asp=1)
+    image(dev.pri,col=c("grey",pri.col[2:5]),breaks=c(pri.breaks),ann=F,add=T,asp=1)
+    box()
+    mtext("4",side=3,line=-1.5,adj=0.05)
+  scalebar(5000,xy=c(interest.points$x[4]-6000,interest.points$y[4]-5500),type="line",label = "5 km")
+
+  plot(dev.pri,col=NA,box=F,legend=F,axes=F)
+ 
+  legend('center', inset=c(0,-0.15), c(leg.labels), col="black",fill=c(rev(pri.col[2:5]),"grey"), bty="n", title="Conservation priority", cex=1, xpd=NA, horiz=F,title.adj = 0)
+
+dev.off()
+
+
+
+```
+
+
+```{r EIA iterations}
+
+eia1 <- raster(paste0(input_path,"scenarios/final/CL_EIA1.tif"))
+  r <- eia1
+  r[r!=2] <- NA
+  r[!is.na(r)] <-1
+eia1.pri <- merge(r*zonation_priority,r*-1)
+
+eia2 <- raster(paste0(input_path,"scenarios/final/CL_EIA2.tif"))
+  r <- eia2
+  r[r!=2] <- NA
+  r[!is.na(r)] <-1
+eia2.pri <- merge(r*zonation_priority,r*-1)
+
+eia3o1 <- raster(paste0(input_path,"scenarios/final/CL_EIA3O1.tif"))
+  r <- eia3o1
+  r[r!=2] <- NA
+  r[!is.na(r)] <-1
+eia3o1.pri <- merge(r*zonation_priority,r*-1)
+
+eia3o2 <- raster(paste0(input_path,"scenarios/final/CL_EIA3O2.tif"))
+  r <- eia3o2
+  r[r!=2] <- NA
+  r[!is.na(r)] <-1
+eia3o2.pri <- merge(r*zonation_priority,r*-1)
+
+cur.dev <- raster(paste0(input_path,"scenarios/final/scenario3_development.footprint.tif"))
+  r <- cur.dev
+  r[r!=2] <- NA
+  r[!is.na(r)] <-1
+cur.dev.pri <- merge(r*zonation_priority,r*-1)
+
+png(paste0(output_path,"eia1_conflicts.png"),height=20,width=15,units="cm",res=300, bg="transparent",pointsize=14)
+     par(mar=c(0.25,1.5,1.25,2), oma=c(0,0,0,0))
+     plot(PP.clipping.mask,col=map.background,legend=F,box=F,axes=F)
+      plot(eia1.pri,col=c(NA,pri.col[2:5]),breaks=c(-1,pri.breaks),legend=F,add=T)
+      plot(PP.shp, add=T, lwd=0.5)
+
+dev.off()
+
+
+png(paste0(output_path,"eia2_conflicts.png"),height=20,width=15,units="cm",res=300, bg="transparent",pointsize=14)
+    par(mar=c(0.25,1.5,1.25,2), oma=c(0,0,0,0))     
+    plot(PP.clipping.mask,col=map.background,legend=F,box=F,axes=F)
+      plot(eia2.pri,col=c(NA,pri.col[2:5]),breaks=c(pri.breaks),legend=F,add=T)
+      plot(PP.shp, add=T, lwd=0.5)
+dev.off()
+
+png(paste0(output_path,"eia3O1_conflicts.png"),height=20,width=15,units="cm",res=300, bg="transparent",pointsize=14)
+    par(mar=c(0.25,1.5,1.25,2), oma=c(0,0,0,0))
+    plot(PP.clipping.mask,col=map.background,legend=F,box=F,axes=F)
+      plot(eia3o1.pri,col=c(NA,pri.col[2:5]),breaks=c(pri.breaks),legend=F,add=T)
+      plot(PP.shp, add=T, lwd=0.5)
+dev.off()
+
+png(paste0(output_path,"eia3O2_conflicts.png"),height=20,width=15,units="cm",res=300, bg="transparent",pointsize=14)
+     par(mar=c(0.25,1.5,1.25,2), oma=c(0,0,0,0))
+     
+  plot(PP.clipping.mask,col=map.background,legend=F,box=F,axes=F)
+      plot(eia3o2.pri,col=c("grey30",pri.col),breaks=c(-1,pri.breaks),legend=F,add=T)
+      plot(PP.shp, add=T, lwd=0.5)
+dev.off()
+
+```
+
+```{r combined EIA plots}
+
+distribution.table <- read.csv(paste0(output_path, '/CL_distribution.impacts_',analysis.date,'.csv'))
+  distribution.table$change <- (distribution.table[,"CL_eia3O2_20140924.CAZ_ME.curves.txt"]-distribution.table[,"CL_eia1_20140924.CAZ_ME.curves.txt"])/distribution.table[,"CL_eia1_20140924.CAZ_ME.curves.txt"]
+
+png(paste0(output_path,"eia_conflicts&impacts.png"),height=22,width=12,units="cm",res=300, bg="transparent",pointsize=14)
+ pl<- layout(matrix(c(1,2,3,4,5,5),3,2,byrow=T))  
+par(mar=c(0.25,0.5,1.25,0.5),las=1)
+     
+  plot(PP.clipping.mask,col=map.background,legend=F,box=F,axes=F)
+     plot(eia1.pri,col=c("grey50",pri.col),breaks=c(-1,pri.breaks),legend=F,add=T)
+      plot(PP.shp, add=T, lwd=0.5)
+
+plot(PP.clipping.mask,col=map.background,legend=F,box=F,axes=F)
+     plot(eia2.pri,col=c("grey50",pri.col),breaks=c(-1,pri.breaks),legend=F,add=T)
+      plot(PP.shp, add=T, lwd=0.5)
+
+plot(PP.clipping.mask,col=map.background,legend=F,box=F,axes=F)
+     plot(eia3o1.pri,col=c("grey50",pri.col),breaks=c(-1,pri.breaks),legend=F,add=T)
+      plot(PP.shp, add=T, lwd=0.5)
+
+plot(PP.clipping.mask,col=map.background,legend=F,box=F,axes=F)
+     plot(eia3o2.pri,col=c("grey50",pri.col),breaks=c(-1,pri.breaks),legend=F,add=T)
+      plot(PP.shp, add=T, lwd=0.5)
+
+par(mar=c(4,6,1.25,2))
+boxplot(1-distribution.table[,grepl("eia",colnames(distribution.table))],horizontal=T,xlab="Proportion of distributions lost",names=c("EIA1","EIA2","EIA3O1","EIA3O2"))
+
+dev.off()
+
+```
+
+```{r map of study region}
+
+AU <- shapefile(paste0(computer,"/GIS_data/Australia/australia_one polygon.shp"))
+  AU <- spTransform(AU,GDA94.50)
+
+ibra.shp <- readShapePoly(paste0(computer,"/GIS_data/Perth-Peel/environmental data/PP_IBRA.shp")) 
+
+png(paste0(output_path,"PPSA_study_area.png"),height=14,width=17.5,units="cm",res=300, bg="transparent",pointsize=10)
+lay.out <- layout(matrix(c(1,1,1,2,3,4),3,2,byrow=F),widths = c(0.8,0.2))
+
+par(mar=c(0,0,0,0), oma=c(0,0.5,0,0),xpd=TRUE)
+    
+    plot(ibra.shp)  
+      image(PP.clipping.mask,col="darkgreen",legend=F,add=T)
+      plot(AU,add=T,lwd=0.5,border="grey")
+      plot(ibra.shp,add=T)
+      points(392867.8,6460059,pch=16,cex=1)
+      plot(PP.shp, add=T, lwd=0.5)
+      scalebar(50000,xy=c(444785.1-15000,6257750),type="line",label = "")
+
+ 
+  plot(AU,xlim=c(88778.64,4635700),ylim=c(5957750,8774441),add=T)
+    plot(ibra.shp,add=T)
+    image(PP.clipping.mask,col="darkgreen",legend=F,add=T)
+
+    
+
+dev.off()
+
+
+
+lay.out <- layout(matrix(c(1,1,1,1,1,2,2,2,2,2,3,4,5,6,7),5,3,byrow=F),widths = c(0.4,0.4,0.2))
+
+par(mar=c(0,0,0,0), oma=c(0,0.5,0,0))
+    
+    plot(zonation_priority,col=c("grey",pri.col[2:5]),breaks=pri.breaks,legend=F,axes=F,box=F)
+      plot(PP.shp, add=T, lwd=0.5)
+      mtext("A",side=3,line=-1.5,adj=0, font=2)
+      scalebar(10000,xy=c(444785.1-15000,6357750),type="line",label = "10 km")
+   
+    plot(zonation_priority,col=map.background,legend=F,box=F,axes=F)
+      plot(dev.pri,col=c("grey",pri.col[2:5]),breaks=c(pri.breaks),legend=F,add=T,zlim=c(0,1))
+#       plot(zonation_priority,col=c("grey",pri.col[2:5]),breaks=pri.breaks,legend=F,add=T)
+      plot(PP.shp, add=T, lwd=0.5)
+      mtext("B",side=3,line=-1.5,adj=0, font=2)
+      text(x=interest.points$x[1],y=interest.points$y[1],"1",font = 2,cex=1.5)
+      text(x=interest.points$x[2],y=interest.points$y[2],"2",font = 2,cex=1.5)
+      text(x=interest.points$x[3],y=interest.points$y[3],"3",font = 2,cex=1.5)
+      text(x=interest.points$x[4],y=interest.points$y[4],"4",font = 2,cex=1.5)
+    
+  par(mar=c(1,1,1,1)) 
+  image(PP.clipping.mask,col=map.background,ann=F,axes=F,xlim=c(interest.points$x[1]-6000,interest.points$x[1]+6000),ylim=c(interest.points$y[1]-6000,interest.points$y[1]+6000),asp=1)
+
+    image(dev.pri,col=c("grey",pri.col[2:5]),breaks=c(pri.breaks),ann=F,add=T,asp=1)
+    box()
+    mtext("1",side=3,line=-1.5,adj=0.05)
+
+```
+

@@ -1,0 +1,58 @@
+Title
+========================================================
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring web pages (click the **MD** toolbar button for help on Markdown).
+
+When you click the **Knit HTML** button a web page will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r load_data}
+rm(list=ls())
+library(raster)
+library(maptools)
+
+zonation.dir <- c("~/GIS_data/Perth-Peel/zonation/100m/")
+
+maxent.dir <- "~/GIS_data/Perth-Peel/Maxent_files/"
+
+threatened.sp <- read.csv("~/GIS_data/Perth-Peel/species data/WA listed protected species.csv")
+
+asc.files <- dir(paste0(maxent.dir,"output/09July13/"), pattern=".asc$")
+
+species.data <- read.csv(paste0(maxent.dir,"/species_data/maxent.data.csv"))
+
+modelled.species <- threatened.sp[!is.na(threatened.sp$sdm),]
+
+taxa <- unique(modelled.species$Taxa)
+
+```
+
+You can also embed plots, for example:
+
+```{r create pdf files}
+setwd(maxent.dir)
+
+for(k in seq(taxa)){
+  
+  sp.list <- modelled.species$Scientific.Name[modelled.species$Taxa==taxa[k]]
+
+  cat("\n","\n","Generating pdf for", as.character(taxa[k]))
+  pdf(paste0(taxa[k],"_Modelled species.pdf"),paper="a4r")
+   
+    for(i in seq(sp.list)){
+      sp <- gsub(" ","_",sp.list[i])
+      r <- raster(paste0(maxent.dir,"output/09July13/",sp,".asc"))
+      species <- names(r)
+        species <- gsub("_"," ",species)
+      sp.points <- species.data[species.data$species==species,c("easting","northing")]
+      
+      plot(r, legend=F, main=species, ylab="Northing",xlab="Easting", zlim=c(0,1))
+        plot(r, legend.only=T, box=F, zlim=c(0,1))
+        points(sp.points,pch=".",col="grey35")
+      cat("\n","Plotting",species,"to pdf")
+    }
+  
+  dev.off()
+  }
+   
+
+```
