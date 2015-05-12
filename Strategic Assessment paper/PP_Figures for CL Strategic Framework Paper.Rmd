@@ -8,18 +8,19 @@ output: html_document
 
 ```{r set up}
 rm(list=ls())
-packages(raster)
-packages(maptools)
-packages(colorRamps)
-packages(fields)
-packages(RColorBrewer)
+library(raster)
+library(maptools)
+library(colorRamps)
+library(fields)
+library(RColorBrewer)
 
   GDA94.50 <- CRS("+proj=utm +zone=50 +south +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs")
   GDA94 <- CRS("+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs")
 
 # computer
 # computer <- "~"
-computer <- "//654cw-20990/Amy"
+# computer <- "//654cw-20990/Amy"
+computer <- "Z:/Amy"
 
 # define paths for input and output files
 input_path <- paste0(computer,'/GIS_data/Perth-Peel/zonation/100m/')
@@ -33,9 +34,9 @@ output_path <- paste0(computer,'/GIS_data/Perth-Peel/zonation/100m/Conservation_
 
 scenario.files <- dir(paste0(input_path,"scenarios/final/"),pattern=".tif$",full.names=T)
 
-PP.mask <- raster("~/GIS_Data/Perth-Peel/mask files/perth.mask.tif")
-PP.clipping.mask <- raster("~/GIS_Data/Perth-Peel/mask files/perth.clipping.mask.tif")
-PP.shp <- readShapePoly("~/GIS_data/Perth-Peel/DOP/DoP_StrategicAssessmentStudyBoundary_Extended_20121004_GDA94.shp", proj4=GDA94)
+PP.mask <- raster(paste0(computer,"/GIS_Data/Perth-Peel/mask files/perth.mask.tif"))
+PP.clipping.mask <- raster(paste0(computer,"/GIS_Data/Perth-Peel/mask files/perth.clipping.mask.tif"))
+PP.shp <- readShapePoly(paste0(computer,"/GIS_data/Perth-Peel/mask files/DoP_StrategicAssessmentStudyBoundary_Extended_20121004_GDA94.shp"), proj4=GDA94)
   PP.shp <- spTransform(PP.shp,GDA94.50)
 
 zonation_priority <- raster(paste0(output_path,"CL_baseline_",analysis.date,".CAZ_E.rank.asc"))
@@ -354,6 +355,25 @@ par(mar=c(0,0,0,0), oma=c(0,0.5,0,0))
     image(dev.pri,col=c("grey",pri.col[2:5]),breaks=c(pri.breaks),ann=F,add=T,asp=1)
     box()
     mtext("1",side=3,line=-1.5,adj=0.05)
+
+```
+
+```{r boxplot of species impacts}
+
+sp.impacts <- read.csv(paste0(output_path,"CL_distribution.impacts_20140924.csv"))
+  sp.impacts[1:9] <- 1- sp.impacts[1:9]
+
+development <- c("CL_current.development_20140924.CAZ_ME.curves.txt","CL_infrastructure_20140924.CAZ_ME.curves.txt","CL_brm.extraction_20140924.CAZ_ME.curves.txt","CL_pines_20140924.CAZ_ME.curves.txt","CL_cumulative.development_20140924.CAZ_ME.curves.txt","CL_eia1_20140924.CAZ_ME.curves.txt" ,"CL_eia2_20140924.CAZ_ME.curves.txt", "CL_eia3O1_20140924.CAZ_ME.curves.txt" ,"CL_eia3O2_20140924.CAZ_ME.curves.txt")
+  dev.label <- c(paste0("1. Urban","\n","    Industrial"),"2. Infrastructure","3. Mining", "4. Forestry", paste0("5. Cumulative","\n","    development"),"EIA1","EIA2","EIA3O1","EIA3O2")
+
+png(paste0(output_path,"Figure3.png"),height=62,width=82,units="mm",bg="transparent",pointsize=10,res=600)
+# pdf(paste0(output_path,"Figure3.pdf"),height=62*0.0393700787,width=82*0.0393700787,pointsize=10)
+  par(las=1,mar=c(4,7,1,1),oma=c(0,0,0,0),lwd=0.5)
+  boxplot(sp.impacts[,c(development[5:1])],names=dev.label[5:1],horizontal = T,xlab=paste0("Proportion of feature distributions","\n","lost to development"), yaxt="n",xaxt="n",lwd=0.5)
+    axis(2,labels=F,lwd=0.5)
+    axis(1,labels=c("0.0","0.2","0.4","0.6","0.8","1.0"),at=seq(0,1,by=0.2),lwd=0.5)
+    text(x=-0.7,y=seq_along(dev.label[1:5]),labels=dev.label[5:1],xpd=NA,adj=0)
+dev.off()
 
 ```
 

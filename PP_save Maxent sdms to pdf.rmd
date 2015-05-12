@@ -40,9 +40,10 @@ for(k in seq(taxa)){
    
     for(i in seq(sp.list)){
       sp <- gsub(" ","_",sp.list[i])
-      r <- raster(paste0(maxent.dir,"output/09July13/",sp,".asc"))
+      r <- raster(paste0(maxent.dir,"output/",taxa[k],"/",sp,"_avg.asc"))
       species <- names(r)
         species <- gsub("_"," ",species)
+        species <- gsub(" avg","",species)
       sp.points <- species.data[species.data$species==species,c("easting","northing")]
       
       plot(r, legend=F, main=species, ylab="Northing",xlab="Easting", zlim=c(0,1))

@@ -31,9 +31,20 @@ output_path <- paste0(computer,'/GIS_data/Perth-Peel/zonation/100m/PPSA/output/'
  names <- as.vector(read.table(paste0(input_path,'ppsa.rank.spp'), header=F, sep='\t')[,6])
 ```
 
-You can also embed plots, for example:
+```{r reclass protected areas}
 
-```{r, echo=FALSE}
+PAs <- raster(paste0(input_path,"scenarios/final/protected.areas.tif"))
+  PAs[PAs==3]<-NA
+  PAs[PAs==6] <- 1
+  PAs[PAs==5] <- 2
+  PAs[PAs==4] <- 3
+
+writeRaster(PAs,paste0(output_path,"Files for ftp site/UoM_Protected_Areas.tif"),overwrite=T)
+
+```
+
+
+```{r copy requested files}
 
 requested.files <- gsub(" ","_",paste0(c("Calyptorhynchus banksii subsp. naso","Calyptorhynchus baudinii","Calyptorhynchus latirostris","Bettongia penicillata subsp. ogilbyi","Dasyurus geoffroii","Pseudocheirus occidentalis","Setonix brachyurus","Acacia anomala","Anthocercis gracilis","Caladenia huegelii","Conospermum undulatum","Diuris purdiei","Drakaea elastica","Eucalyptus argutifolia","Synaphea stenoloba","Tetraria australiensis"),collapse="|"))
 

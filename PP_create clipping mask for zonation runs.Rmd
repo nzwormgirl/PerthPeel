@@ -28,10 +28,7 @@ packages(maptools)
 
 source("C:/Users/awhitehead/Dropbox/Random R code/shp2raster.R")
 
-# set current projection
   GDA94 <- CRS("+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs")
-
-  # transform to new projection
   GDA94.50 <- CRS("+proj=utm +zone=50 +south +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs")
 
 perth <- raster("~/GIS_data/Perth-Peel/environmental data/100m/region.mask.asc")
@@ -106,7 +103,7 @@ saltmarsh <- raster("~/GIS_data/Perth-Peel/zonation/100m/EC_saltmarsh.tif")
 
 ```{r read in spatial data that is to be excluded from mask}
 existing.development <- readShapePoly("~/GIS_data/Perth-Peel/DOP/DoP_Development_Footprint_20140310.shp")
-  exist.dev.raster <- shp2raster(existing.development[grepl("Developed",existing.development$DEVELOPED),], perth,value=0,bkg=1, label="DoP_Development_Footprint_20140310_developed", transform=F )
+  exist.dev.raster <- shp2raster(existing.development[grepl("Developed|Existing Development",existing.development$DEVELOPED),], perth,value=0,bkg=1, label="DoP_Development_Footprint_20140310_developed", transform=F )
 
 existing.infrastructure <- readShapePoly("~/GIS_data/Perth-Peel/DOP/DoP_Infrastructure_Existing_Footprint_20140321.shp",proj4string=CRS("+proj=tmerc +lat_0=0 +lon_0=117 +k=0.9996 +x_0=500000 +y_0=4000000 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs"))
   exist.infra.raster <- shp2raster(existing.infrastructure, perth, value=0, bkg=1, label="DoP_Infrastructure_Existing_Footprint_20140321", transform=T, proj.to=GDA94.50)
@@ -115,7 +112,7 @@ existing.infrastructure <- readShapePoly("~/GIS_data/Perth-Peel/DOP/DoP_Infrastr
 
 
 ```{r merge layers}
-rasters <- list(nvis_mvs_exotics,epa.bio3,world.heritage,national.heritage,commonwealth.heritage,ramsar,epa.bio2,rem.veg,tec,cec,saltmarsh,mig.birds.raster, exist.infra.raster, exist.dev.raster)
+rasters <- list(epa.bio3,world.heritage,national.heritage,commonwealth.heritage,ramsar,epa.bio2,rem.veg,tec,cec,saltmarsh,mig.birds.raster)
 
 # check to make sure that the extents match
 for (i in 1:length(rasters)){
@@ -127,6 +124,12 @@ for (i in 1:length(rasters)){
   assign(names(r),r)
    }
 }
+
+all.include <- extend(calc(stack(ramsar,tec,cec,saltmarsh,mig.birds.raster,epa.bio3,world.heritage,national.heritage,commonwealth.heritage,epa.bio2,rem.veg),max),nvis_mvs_exotics)
+origin(nvis_mvs_exotics) <- origin(all.include)
+all.include.nvis <- mosaic(all.include,nvis_mvs_exotics,fun=max)
+  all.include.nvis[!is.na(all.include.nvis)] <- 1
+  
 
 # combine all inclusion layers
 all.include <- mask(calc(stack(ramsar,tec,cec,saltmarsh,mig.birds.raster,epa.bio3,world.heritage,national.heritage,commonwealth.heritage,epa.bio2,rem.veg,nvis_mvs_exotics),max),perth)
@@ -141,8 +144,11 @@ clipping.mask <- min(all.include,all.exclude)
 
 plot(clipping.mask)
 
-writeRaster(clipping.mask,"~/GIS_data/Perth-Peel/mask files/perth.clipping.mask.tif", format="GTiff", overwrite=T)
+#writeRaster(clipping.mask,"~/GIS_data/Perth-Peel/mask files/perth.clipping.mask.tif", format="GTiff", overwrite=T)
 
+# export clipping mask that does not exclude existing development as these still contain areas of native vegetation
+writeRaster(all.include,"~/GIS_data/Perth-Peel/mask files/perth.clipping.mask.tif", format="GTiff", overwrite=T)
+writeRaster(all.include.nvis,"~/GIS_data/Perth-Peel/mask files/ibra.clipping.mask.tif", format="GTiff", overwrite=T)
 ```
 
 

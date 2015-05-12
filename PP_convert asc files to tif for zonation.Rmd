@@ -6,34 +6,79 @@ This is an R Markdown document. Markdown is a simple formatting syntax for autho
 When you click the **Knit HTML** button a web page will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
 
 ```{r setup}
-packages(raster)
+rm(list=ls())
+library(raster)
 
-convert.to.tif <- function (asc.file) {
-  r <- raster(paste0(maxent.dir,asc.file))
+# computer <- "//654cw-20990/Amy/"
+computer <- "Z:/Amy/"
+#computer <- "~/"
+
+model <- "Model3"
+
+convert.to.tif <- function (asc.file,mask.raster,suffix="") {
+  r <- raster(asc.file)
   species <- gsub("_avg","",names(r))
-  r <- mask(resample(r,PP.mask),PP.mask)
-  r <- round(r*1000,0)
-  
-  writeRaster(r,paste0(zonation.dir,species,".tif"),overwrite=T)
-  cat("converted",species, "to tif","\n")
+#   cat("converting",species, "to tif","\n")
+  r <- round(mask(resample(r,mask.raster),mask.raster)*1000,0)
+  names(r) <- species
+  writeRaster(r,paste0(zonation.dir,species,suffix,".tif"),overwrite=T,dataType='INT2U')
+  return(r)
 }
 
 ```
 
 
-```{r setup}
-computer <- "//654cw-20990/Amy/"
-#computer <- "~/"
+```{r clip to PPSA}
 
-PP.mask <- raster(paste0(computer,"GIS_data/Perth-Peel/environmental data/100m/clipping.mask.tif"))
+PP.clipping.mask <- raster(paste0(computer,"GIS_data/Perth-Peel/environmental data/100m/clipping.mask.tif"))
 
-maxent.dir <- paste0(computer,"GIS_data/Perth-Peel/Maxent_files/environmental_data/100m/ibra/output/plants.Model3/")
-zonation.dir <- paste0(computer,"GIS_data/Perth-Peel/zonation/100m/")
+maxent.dir <- paste0(computer,"GIS_data/Perth-Peel/Maxent_files/environmental_data/100m/ibra/output/")
+zonation.dir <- paste0(computer,"GIS_data/Perth-Peel/zonation/100m/PP/")
 
-(asc.files <- dir(maxent.dir,pattern="_avg.asc$", recursive=T, full.names=F))
+taxa <- c("plants","birds","mammals","reptiles","invertebrates")
 
-lapply(asc.files,convert.to.tif)
+for(i in seq(taxa)){
+  cat("Converting",taxa[i],"\n")
+  asc.files <- dir(paste0(maxent.dir,taxa[i],"/",model,"/"),pattern="_avg.asc$",full.names=T)
+  pb <- txtProgressBar(min=0,max=length(asc.files),style=3)
+
+  for (a in seq(asc.files)){
+    convert.to.tif(asc.files[a],PP.clipping.mask,"_PP")
+    setTxtProgressBar(pb,a)
+  }
+
+  close(pb)
+}
 
 ```
 
+
+```{r convert to tif at IBRA scale}
+ibra.clipping.mask <- raster(paste0(computer,"GIS_data/Perth-Peel/mask files/ibra.clipping.mask.tif"))
+ibra.pa.clipping.mask <- raster(paste0(computer,"GIS_data/Perth-Peel/mask files/ibra.pa.clipping.mask.tif"))
+
+# maxent.dir <- paste0(computer,"GIS_data/Perth-Peel/Maxent_files/environmental_data/100m/ibra/")
+zonation.dir <- paste0(computer,"GIS_data/Perth-Peel/zonation/100m/ibra/")
+
+# taxa <- c("output/plants.Model3/","output_2013_11_11/birds/","output_2013_11_11/mammals/","output_2013_11_11/reptiles/","output_2013_11_11/invertebrates/")
+
+for(i in seq(taxa)){
+  cat("Converting",taxa[i],"\n")
+  asc.files <- dir(paste0(maxent.dir,taxa[i],"/",model,"/"),pattern="_avg.asc$",full.names=T)
+  pb <- txtProgressBar(min=0,max=length(asc.files),style=3)
+
+  for (a in seq(asc.files)){
+    ibra.sdm <- convert.to.tif(asc.files[a],ibra.clipping.mask,"_IBRA")
+#     convert.to.tif(asc.files[a],ibra.pa.clipping.mask,"_IBRA.PA")
+    mask(ibra.sdm,ibra.pa.clipping.mask,paste0(zonation.dir,names(ibra.sdm),"_IBRA.PA",".tif"),overwrite=T,dataType='INT2U')
+    setTxtProgressBar(pb,a)
+    rm(ibra.sdm)
+  }
+
+  close(pb)
+}
+
+
+
+```
 

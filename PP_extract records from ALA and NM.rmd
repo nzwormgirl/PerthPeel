@@ -11,6 +11,7 @@ The script loops through each taxonomic group and extracts the records for speci
 ```{r functions, highlight=TRUE}
 # set working directory
 rm(list=ls())
+source("C:/Users/awhitehead/Dropbox/Random R code/tweet me.r")
 setwd("C:/Users/awhitehead/Documents/GIS_data/Perth-Peel/species data")
 
 rbind.match.columns <- function (input1,input2) {
@@ -31,7 +32,7 @@ rbind.match.columns <- function (input1,input2) {
 extract <- function(folder, region, input,species){
   records <- input[grep(species,input$Scientific.Name),]
   if(nrow(records)>0) {
-    cat(nrow(records), "records for",as.character(species),"successfully extracted from",region,"in",folder,"\n")
+    cat(nrow(records), "records for",as.character(species),"successfully extracted from",region,"from",folder,"\n")
     return(records)
   } 
 }
@@ -53,11 +54,10 @@ mnes.species <- read.csv("EPBC listed species WA.csv", skip=1)
 
 # open the list of threatened and interesting species for potential analysis
 protected.species <- read.csv("WA listed protected species.csv")
-  colnames(protected.species)[5] <- "Scientific.Name"
   protected.species$mnes[protected.species$Listing_level == "Matter of National Environmental Significance"] <- "TRUE"
  
 # the taxanomic blocks that the data were downloaded in
-taxa <- c("mammals", "amphibians", "plants", "reptiles","birds","invertebrates")
+taxa <- c("mammals", "amphibians", "plants", "reptiles","birds","invertebrates","arthropods")
           
 ```
 
@@ -66,19 +66,18 @@ setwd("C:/Users/awhitehead/Documents/GIS_data/Perth-Peel/species data")
 
 # loop through each taxonomic group and extract records based on the threatened species list
 for (k in seq(taxa)){
-  cat("\n", "Extracting records for",taxa[k],"\n")  
+  cat("\n", "Extracting records for",taxa[k],"from ALA", "\n")  
   species.list <- protected.species$Scientific.Name[protected.species$Taxa==taxa[k]] 
-  P.input <- read.csv(paste0("ALA downloads/Perth ",taxa[k],".csv"))
-  NJF.input <- read.csv(paste0("ALA downloads/NJF ",taxa[k],".csv"))
-  DP.input <- read.csv(paste0("ALA downloads/DP ",taxa[k],".csv"))
+  tryCatch( {
+    SCP.input <- read.csv(paste0("ALA downloads/SCP ",taxa[k],".csv"))
+    JF.input <- read.csv(paste0("ALA downloads/JF ",taxa[k],".csv"))
+    }, warning = function(e) {cat("")})
 
   for(i in seq(species.list)){
-      NC.records <- extract("ALA downloads", "NSW North Coast",NC.input,species.list[i])
-      SB.records <- extract("ALA downloads", "Sydney Basin",SB.input,species.list[i])
-      BB.records <- extract("ALA downloads", "Brigalow Belt South",BB.input,species.list[i])
+      SCP.records <- extract("ALA downloads", "SCP",SCP.input,species.list[i])
+      JF.records <- extract("ALA downloads", "JF",JF.input,species.list[i])
       
-      all.records <- combine.records(NC.records, SB.records)
-        all.records <- combine.records(all.records, BB.records)
+      all.records <- combine.records(SCP.records, JF.records)
         
      if(is.null(all.records)==FALSE) {
         protected.species$Downloaded.ALA[protected.species$Scientific.Name==species.list[i]] <- "yes"
@@ -86,7 +85,7 @@ for (k in seq(taxa)){
         write.csv(all.records, glue("ALA data/",species.list[i],".csv"),row.names=FALSE)
         cat("Exported",nrow(all.records), "records for", as.character(species.list[i]),"\n","\n")
         }
-      suppressWarnings(rm(NC.records,SB.records,BB.records,all.records))
+      suppressWarnings(rm(SCP.records,JF.records,all.records))
       gc()
     }
 }
@@ -133,6 +132,8 @@ for (k in seq(taxa)){
 # update threatened species download information
 write.csv(protected.species, "WA listed protected species.csv", row.names=FALSE)
 
+dmSend("I'm done extracting the atlas data", "@nzwormgirl")
+
 ```
 
-*This file was last updated on 12 April 2013 and last run on `r format(Sys.time(), "%d %B %Y")`.*
+*This file was last updated on 24 April 2013 and last run on `r format(Sys.time(), "%d %B %Y")`.*
