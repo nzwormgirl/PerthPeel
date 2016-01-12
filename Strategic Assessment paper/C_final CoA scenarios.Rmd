@@ -1,0 +1,137 @@
+Create development rasters for scenario planning
+========================================================
+
+This script takes the relevant shapefiles from the various planning agencies in Perth-Peel and creates mask rasters for each of the 12 scenarios tested in the draft report using the function `create.raster`.  Shapefiles are forced into the perth boundary at 100m and then clipped by the clipping layer to exclude non-vegetated areas.
+
+Raster values range from 1-5 to force the order in which zonation removes cells
+1 = areas for development
+2 = general areas
+3 = areas with the lowest form of protection
+4 = areas that are sort of protected (ie. state forests)
+5 = areas that have a high level of protection
+
+
+```{r setup}
+#load packages and set working directory
+rm(list=ls())
+start.time <- proc.time()
+
+  computer <- "J:/UM backup/"
+
+  envi.directory <- paste0(computer, "GIS_data/Perth-Peel/")
+  output.directory <- paste0(computer, "GIS_data/Perth-Peel/zonation/100m/scenarios/final/Conservation Letters/")
+
+setwd(output.directory)
+
+library(raster)
+library(rgdal)
+library(maptools)
+library(rgeos)
+
+perth <- raster(paste0(computer,"GIS_data/Perth-Peel/environmental data/100m/region.mask.asc"))
+  perth[!is.na(perth)] <- 2
+clipping.mask <- raster(paste0(computer, "GIS_data/Perth-Peel/environmental data/100m/clipping.mask.tif"))
+  clipping.mask[!is.na(clipping.mask)] <- 2
+
+```
+
+The variables in the create.raster function are defined below:
+s = input shapefile
+mask.raster = the background raster that you are converting into
+raster.label = label that is used as the filename, raster name and plot title
+value = the value that cells are to be given where the shapefile is present in the landscape
+transform = a logical value that determines whether the function transforms the shapefile data prior to conversion.  If set to TRUE, then you need to make sure that the CRS values are set correctly.
+
+```{r create raster function}
+create.raster <- function (s, mask.raster, raster.label, value, transform=TRUE) {
+    
+   if(transform==TRUE) {
+     proj4string(s) <- "+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs"
+    s <- spTransform(s, CRS("+proj=utm +zone=50 +south +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs"))
+     }
+    
+  r <- rasterize(s,mask.raster)
+    r[!is.na(r)] <- value
+    r <- mask(merge(r,mask.raster),mask.raster, filename=paste0(output.directory,raster.label), format="GTiff", overwrite=T)
+    names(r) <- rep(raster.label,length(names(r)))
+    
+    plot(r, main=raster.label, zlim=c(1,5))
+
+    return(r)
+  }
+
+```
+
+```{r Class of Action}
+  coa.urban <- readShapePoly(paste0(envi.directory,"CoA/urban_coa_20150204/urban_coa_20150204.shp"))
+  coa.urban.raster <- create.raster(coa.urban,perth, raster.label="scenario1_urban", value=1, transform=FALSE)
+  
+  coa.industrial <- readShapePoly(paste0(envi.directory,"CoA/DoP_industrial_coa_20150204/DoP_industrial_coa_20150204.shp"))
+  coa.industrial.raster <- create.raster(coa.industrial,perth, raster.label="scenario2_industrial", value=1, transform=FALSE)
+  
+  coa.ruralres <- readShapePoly(paste0(envi.directory,"CoA/DoP_rural_res_coa_20150130/DoP_rural_res_coa_20150130.shp"))
+  coa.ruralres.raster <- create.raster(coa.ruralres,perth, raster.label="scenario3_ruralres", value=1, transform=FALSE)
+  
+  coa.infrastructure <- readShapePoly(paste0(envi.directory,"CoA/DoP_Infrastructure_Footprint_20151019/DoP_Infrastructure_Footprint_20151019.shp"))
+  coa.infrastructure.raster <- create.raster(coa.infrastructure,perth, raster.label="scenario4_infrastructure", value=1, transform=FALSE)
+  
+  coa.pines <- readShapePoly(paste0(envi.directory,"CoA/DoP_Pines_COA_20151224/DoP_Pines_COA_20151224.shp"))
+  coa.pines.raster <- create.raster(coa.pines,perth, raster.label="scenario5_pines", value=1, transform=TRUE)
+  
+  coa.brm <- readShapePoly(paste0(envi.directory,"CoA/DMP_BRM_Class_of_Action_SA_Public_20151209/DMP_BRM_Class_of_Action_SA_Public_20151209.shp"))
+  coa.brm.raster <- create.raster(coa.brm[coa.brm$ColourCode!="Red",],perth, raster.label="scenario6_brm", value=1, transform=TRUE)
+  
+```
+
+```{r cumulative scenario}
+  
+  coa.cumulative.raster <- calc(stack(coa.urban.raster,coa.industrial.raster,coa.ruralres.raster,coa.infrastructure.raster,coa.pines.raster,coa.brm.raster),min,filename=paste0(output.directory,"scenario7_cumulative"),format="GTiff",overwrite=T)
+  plot(coa.cumulative.raster, main="coa.cumulative.raster", zlim=c(1,5))
+
+```
+
+```{r urban iterations}
+# exclude industrial & rural residential from these to make fair comparison with coa_urban
+  
+  #EIA1
+  dop.eia1 <- readShapePoly(paste0(envi.directory,"DOP/DoP_EIA1_20130809.shp"))
+  dop.eia1.raster <- create.raster(dop.eia1[dop.eia1$Land_Type!="Developed Urban" & dop.eia1$Land_Type!="Existing Industrial" & dop.eia1$Land_Type!="Existing Industrial" & dop.eia1$Land_Type!="Potential Industrial",],perth, raster.label="scenario1_1_EIA1", value=1, transform=FALSE)
+ 
+  # EIA2 
+  dop.eia2 <- readShapePoly(paste0(envi.directory,"DOP/DoP_EIA2_20130809.shp"))
+  dop.eia2.raster <- create.raster(dop.eia2[dop.eia2$Land_Type!="Developed Urban" & dop.eia2$Land_Type!="Existing Industrial" & dop.eia2$Land_Type!="Potential Industrial",], perth, raster.label="scenario1_2_EIA2", value=1, transform=FALSE)
+  
+  # Option 1 without Keralup
+  dop.EIA3_Option1_30102013 <- readShapePoly(paste0(envi.directory,"DOP/DOP_EIA3_Option1_30102013.shp"))
+  dop.EIA3_Option1_30102013.raster <- create.raster(dop.EIA3_Option1_30102013, perth, raster.label="scenario1_3a_EIA3_Option1",value=1,transform=FALSE)
+  
+
+  # Option 2 with Keralup
+  dop.EIA3_Option2_30102013 <- readShapePoly(paste0(envi.directory,"DOP/DOP_EIA3_Option2_30102013.shp"))
+  dop.EIA3_Option2_30102013.raster <- create.raster(dop.EIA3_Option2_30102013, perth, raster.label="scenario1_3b_EIA3_Option2",value=1,transform=FALSE)
+  
+  # current development footprint
+  dop.development.footprint <- readShapePoly(paste0(envi.directory,"DOP/DoP_Development_Footprint_20140310.shp"))
+  dop.development.footprint.raster <- create.raster(dop.development.footprint[dop.development.footprint$DEVELOPED=="Urban Undeveloped",], perth, raster.label="scenario1_4_development_footprint",value=1,transform=FALSE)
+  
+
+```
+
+All the scenarios need to be clipped by the vegetation layer to remove the areas that are already developed and, thus, not being considered.
+
+
+```{r clip scenarios by clipping mask}
+
+(scenarios <- dir(output.directory,pattern="scenario.*\\.tif$"))
+
+for (s in seq(scenarios)){
+  r <- raster(scenarios[s])
+  r <- mask(r,clipping.mask,filename=paste0(computer, "GIS_data/Perth-Peel/zonation/100m/scenarios/final/Conservation Letters/",names(r),"_clipped"), format="GTiff", overwrite=T)
+  plot(r, main=names(r),zlim=c(1,5))
+}
+
+```
+
+
+
+*This file was last updated on 12 January 2016 and last run on `r format(Sys.time(), "%d %B %Y")`.*
