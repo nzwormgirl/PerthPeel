@@ -16,10 +16,10 @@ Raster values range from 1-5 to force the order in which zonation removes cells
 rm(list=ls())
 start.time <- proc.time()
 
-  computer <- "J:/UM backup/"
+  computer <- "K:/Super Computer Data/"
 
   envi.directory <- paste0(computer, "GIS_data/Perth-Peel/")
-  output.directory <- paste0(computer, "GIS_data/Perth-Peel/zonation/100m/scenarios/final/Conservation Letters/")
+  output.directory <- paste0(computer, "GIS_data/Perth-Peel/zonation/100m/Conservation_Letters/final/scenarios/")
 
 setwd(output.directory)
 
@@ -28,10 +28,10 @@ library(rgdal)
 library(maptools)
 library(rgeos)
 
-perth <- raster(paste0(computer,"GIS_data/Perth-Peel/environmental data/100m/region.mask.asc"))
-  perth[!is.na(perth)] <- 2
-clipping.mask <- raster(paste0(computer, "GIS_data/Perth-Peel/environmental data/100m/clipping.mask.tif"))
-  clipping.mask[!is.na(clipping.mask)] <- 2
+perth <- raster(paste0(computer,"GIS_data/Perth-Peel/mask files/perth.mask.tif"))
+  perth[!is.na(perth)] <- 3
+clipping.mask <- raster(paste0(computer, "GIS_data/Perth-Peel/zonation/100m/PP/Acacia_anomala_PP.tif"))
+  clipping.mask[!is.na(clipping.mask)] <- 3
 
 ```
 
@@ -95,20 +95,20 @@ create.raster <- function (s, mask.raster, raster.label, value, transform=TRUE) 
   
   #EIA1
   dop.eia1 <- readShapePoly(paste0(envi.directory,"DOP/DoP_EIA1_20130809.shp"))
-  dop.eia1.raster <- create.raster(dop.eia1[dop.eia1$Land_Type!="Developed Urban" & dop.eia1$Land_Type!="Existing Industrial" & dop.eia1$Land_Type!="Existing Industrial" & dop.eia1$Land_Type!="Potential Industrial",],perth, raster.label="scenario1_1_EIA1", value=1, transform=FALSE)
+  dop.eia1.raster <- create.raster(dop.eia1[dop.eia1$Land_Type!="Developed Urban" & dop.eia1$Land_Type!="Existing Industrial" & dop.eia1$Land_Type!="Existing Industrial" & dop.eia1$Land_Type!="Potential Industrial",],perth, raster.label="scenario1_1_eia1", value=1, transform=FALSE)
  
   # EIA2 
   dop.eia2 <- readShapePoly(paste0(envi.directory,"DOP/DoP_EIA2_20130809.shp"))
-  dop.eia2.raster <- create.raster(dop.eia2[dop.eia2$Land_Type!="Developed Urban" & dop.eia2$Land_Type!="Existing Industrial" & dop.eia2$Land_Type!="Potential Industrial",], perth, raster.label="scenario1_2_EIA2", value=1, transform=FALSE)
+  dop.eia2.raster <- create.raster(dop.eia2[dop.eia2$Land_Type!="Developed Urban" & dop.eia2$Land_Type!="Existing Industrial" & dop.eia2$Land_Type!="Potential Industrial",], perth, raster.label="scenario1_2_eia2", value=1, transform=FALSE)
   
   # Option 1 without Keralup
   dop.EIA3_Option1_30102013 <- readShapePoly(paste0(envi.directory,"DOP/DOP_EIA3_Option1_30102013.shp"))
-  dop.EIA3_Option1_30102013.raster <- create.raster(dop.EIA3_Option1_30102013, perth, raster.label="scenario1_3a_EIA3_Option1",value=1,transform=FALSE)
+  dop.EIA3_Option1_30102013.raster <- create.raster(dop.EIA3_Option1_30102013, perth, raster.label="scenario1_3a_eia3_option1",value=1,transform=FALSE)
   
 
   # Option 2 with Keralup
   dop.EIA3_Option2_30102013 <- readShapePoly(paste0(envi.directory,"DOP/DOP_EIA3_Option2_30102013.shp"))
-  dop.EIA3_Option2_30102013.raster <- create.raster(dop.EIA3_Option2_30102013, perth, raster.label="scenario1_3b_EIA3_Option2",value=1,transform=FALSE)
+  dop.EIA3_Option2_30102013.raster <- create.raster(dop.EIA3_Option2_30102013, perth, raster.label="scenario1_3b_eia3_option2",value=1,transform=FALSE)
   
   # current development footprint
   dop.development.footprint <- readShapePoly(paste0(envi.directory,"DOP/DoP_Development_Footprint_20140310.shp"))
@@ -123,6 +123,7 @@ All the scenarios need to be clipped by the vegetation layer to remove the areas
 ```{r clip scenarios by clipping mask}
 
 (scenarios <- dir(output.directory,pattern="scenario.*\\.tif$"))
+  scenarios <- scenarios[!grepl("clipped",scenarios)]
 
 for (s in seq(scenarios)){
   r <- raster(scenarios[s])
