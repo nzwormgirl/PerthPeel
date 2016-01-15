@@ -1,0 +1,55 @@
+
+```{r set up}
+  rm(list=ls())
+
+  library(raster)
+  library(rgdal)
+  library(maptools)
+  library(rgeos)
+
+  computer <- "K:/Super Computer Data/"
+
+  input.path <- paste0(computer, "GIS_data/Perth-Peel/zonation/100m/")
+  output.path <- paste0(computer, "GIS_data/Perth-Peel/zonation/100m/Conservation_Letters/final/scenarios/")
+
+  setwd(output.path)
+
+  trim <- function (x) gsub("^\\s+|\\s+$", "", x)
+  
+  3
+    
+```
+
+```{r load data}
+  perth <- raster(paste0(computer,"GIS_data/Perth-Peel/mask files/perth.mask.tif"))
+    perth[!is.na(perth)] <- 3
+  clipping.mask <- raster(paste0(computer, "GIS_data/Perth-Peel/mask files/perth.mask.tif"))
+    
+  clipping.mask.length <- length(clipping.mask[!is.na(clipping.mask)])
+  
+  species.files <- dir(paste0(input.path,"PP/"),pattern=".tif$",full.names=T)
+  species.rasters <- stack(species.files)
+  
+  scenario.files <- dir(paste0(input.path,"Conservation_Letters/final/scenarios/"),pattern=".tif$",full.names=T)
+    scenario.files <- scenario.files[grepl("clipped",scenario.files)]
+  scenario.rasters <- stack(scenario.files)
+  
+  all.rasters <- stack(species.rasters,scenario.rasters)
+  
+```
+
+```{r test data files}
+
+  
+  output <- d(species=names(all.rasters),length=NA)
+  
+  for(i in 1:nlayers(all.rasters)){
+    r <- all.rasters[[i]]
+    output$length[i] <- length(r[!is.na(r)])
+    cat(names(r),"\n")
+  }
+  
+  incorrect.data <- output[output$length != clipping.mask.length,]
+    
+```
+
