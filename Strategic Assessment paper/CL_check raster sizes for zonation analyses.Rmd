@@ -7,7 +7,8 @@
   library(maptools)
   library(rgeos)
 
-  computer <- "K:/Super Computer Data/"
+  # computer <- "K:/Super Computer Data/"
+  computer <- "Z:/Amy/"
 
   input.path <- paste0(computer, "GIS_data/Perth-Peel/zonation/100m/")
   output.path <- paste0(computer, "GIS_data/Perth-Peel/zonation/100m/Conservation_Letters/final/scenarios/")
@@ -15,19 +16,23 @@
   setwd(output.path)
 
   trim <- function (x) gsub("^\\s+|\\s+$", "", x)
-  
-  3
     
 ```
 
 ```{r load data}
   perth <- raster(paste0(computer,"GIS_data/Perth-Peel/mask files/perth.mask.tif"))
     perth[!is.na(perth)] <- 3
-  clipping.mask <- raster(paste0(computer, "GIS_data/Perth-Peel/mask files/perth.mask.tif"))
+  clipping.mask <- raster(paste0(computer, "GIS_data/Perth-Peel/mask files/perth.clipping.mask.tif"))
+    clipping.mask[!is.na(clipping.mask)] <- 3
     
   clipping.mask.length <- length(clipping.mask[!is.na(clipping.mask)])
   
+  # import biodiversity feature names
+  cl.spp <- as.vector(read.table(paste0(input.path,'cl.ppsa.rank.spp'), header=F, sep='\t')[,6])
+    cl.spp <- paste0(input.path,cl.spp)
+  
   species.files <- dir(paste0(input.path,"PP/"),pattern=".tif$",full.names=T)
+    species.files <- species.files[species.files %in% cl.spp] #remove species that aren't in spp file
   species.rasters <- stack(species.files)
   
   scenario.files <- dir(paste0(input.path,"Conservation_Letters/final/scenarios/"),pattern=".tif$",full.names=T)
@@ -40,8 +45,7 @@
 
 ```{r test data files}
 
-  
-  output <- d(species=names(all.rasters),length=NA)
+  output <- data.frame(species=names(all.rasters),length=NA)
   
   for(i in 1:nlayers(all.rasters)){
     r <- all.rasters[[i]]
@@ -50,6 +54,6 @@
   }
   
   incorrect.data <- output[output$length != clipping.mask.length,]
-    
+
 ```
 

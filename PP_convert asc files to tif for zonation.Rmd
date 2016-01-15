@@ -15,11 +15,12 @@ computer <- "Z:/Amy/"
 
 model <- "Model3"
 
-convert.to.tif <- function (asc.file,mask.raster,suffix="") {
+convert.to.tif <- function (asc.file,mask.raster,bg.raster,suffix="") {
   r <- raster(asc.file)
   species <- gsub("_avg","",names(r))
 #   cat("converting",species, "to tif","\n")
-  r <- round(mask(resample(r,mask.raster),mask.raster)*1000,0)
+  r <- round(mask(crop(resample(r,mask.raster),mask.raster),mask.raster)*1000,0)
+    r <- mask(merge(r,bg.raster),mask.raster)
   names(r) <- species
   writeRaster(r,paste0(zonation.dir,species,suffix,".tif"),overwrite=T,dataType='INT2U')
   return(r)
@@ -30,6 +31,7 @@ convert.to.tif <- function (asc.file,mask.raster,suffix="") {
 
 ```{r clip to PPSA}
 
+PP.mask <- raster(paste0(computer,"GIS_data/Perth-Peel/mask files/perth.mask.tif"))
 PP.clipping.mask <- raster(paste0(computer,"GIS_data/Perth-Peel/mask files/perth.clipping.mask.tif"))
 
 maxent.dir <- paste0(computer,"GIS_data/Perth-Peel/Maxent_files/environmental_data/100m/ibra/output/")
@@ -43,7 +45,7 @@ for(i in seq(taxa)){
   pb <- txtProgressBar(min=0,max=length(asc.files),style=3)
 
   for (a in seq(asc.files)){
-    convert.to.tif(asc.files[a],PP.clipping.mask,"_PP")
+    convert.to.tif(asc.files[a],mask.raster=PP.clipping.mask,bg.raster=PP.mask,"_PP")
     setTxtProgressBar(pb,a)
   }
 
