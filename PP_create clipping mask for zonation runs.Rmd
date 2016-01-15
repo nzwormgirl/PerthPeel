@@ -65,7 +65,7 @@ create.raster <- function (s, mask.raster, label, value, transform=TRUE) {
 
 ```{r read in spatial data that is to be included in mask}
 #vegetation
-nvis_mvs_exotics <- raster("~/GIS_data/Perth-Peel/environmental data/100m/ibra/vegetation/nvis_mvs_exotics.tif")
+nvis_mvs_exotics <- raster("//654cw-20990/Amy/GIS_data/Perth-Peel/Maxent_files/environmental_data/100m/ibra/nvis_mvs_exotics.asc")
   nvis_mvs_exotics[nvis_mvs_exotics == 98 | nvis_mvs_exotics == 99] <- NA
 epa.bio3 <- raster("EPA_Biodiversity3_20130322.tif")
   epa.bio3[epa.bio3 == 0] <- NA
