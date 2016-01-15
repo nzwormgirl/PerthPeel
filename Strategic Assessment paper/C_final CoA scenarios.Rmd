@@ -122,12 +122,12 @@ All the scenarios need to be clipped by the vegetation layer to remove the areas
 
 ```{r clip scenarios by clipping mask}
 
-(scenarios <- dir(output.directory,pattern="scenario.*\\.tif$"))
+(scenarios <- dir(output.directory,pattern=".tif$"))
   scenarios <- scenarios[!grepl("clipped",scenarios)]
 
 for (s in seq(scenarios)){
   r <- raster(scenarios[s])
-  r <- mask(r,clipping.mask,filename=paste0(computer, "GIS_data/Perth-Peel/zonation/100m/scenarios/final/Conservation Letters/",names(r),"_clipped"), format="GTiff", overwrite=T)
+  r <- mask(r,clipping.mask,filename=paste0(computer, "GIS_data/Perth-Peel/zonation/100m/Conservation_Letters/final/scenarios/", names(r),"_clipped"), format="GTiff", overwrite=T)
   plot(r, main=names(r),zlim=c(1,5))
 }
 

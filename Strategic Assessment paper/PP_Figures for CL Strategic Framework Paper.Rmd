@@ -21,11 +21,11 @@ library(RColorBrewer)
 # computer <- "~"
 # computer <- "//654cw-20990/Amy"
 # computer <- "Z:/Amy"
-computer <- "I:/Super Computer Data"
+computer <- "K:/Super Computer Data"
 
 # define paths for input and output files
 input_path <- paste0(computer,'/GIS_data/Perth-Peel/zonation/100m/')
-output_path <- paste0(computer,'/GIS_data/Perth-Peel/zonation/100m/Conservation_Letters/output/')
+output_path <- paste0(computer,'/GIS_data/Perth-Peel/zonation/100m/Conservation_Letters/final/output/figures')
 
 # date of the output files
 #   analysis.date <- '20140728' # remember to update to correct date
@@ -363,11 +363,14 @@ par(mar=c(0,0,0,0), oma=c(0,0.5,0,0))
 
 ```{r boxplot of species impacts}
 
-sp.impacts <- read.csv(paste0(output_path,"CL_distribution.impacts_20140924.csv"))
+sp.impacts <- read.csv(paste0(output_path,"CL_distribution.impacts",analysis.date,".csv"))
   sp.impacts[1:9] <- 1- sp.impacts[1:9]
 
-development <- c("CL_current.development_20140924.CAZ_ME.curves.txt","CL_infrastructure_20140924.CAZ_ME.curves.txt","CL_brm.extraction_20140924.CAZ_ME.curves.txt","CL_pines_20140924.CAZ_ME.curves.txt","CL_cumulative.development_20140924.CAZ_ME.curves.txt","CL_eia1_20140924.CAZ_ME.curves.txt" ,"CL_eia2_20140924.CAZ_ME.curves.txt", "CL_eia3O1_20140924.CAZ_ME.curves.txt" ,"CL_eia3O2_20140924.CAZ_ME.curves.txt")
-  dev.label <- c(paste0("1. Urban","\n","    Industrial"),"2. Infrastructure","3. Mining", "4. Forestry", paste0("5. Cumulative","\n","    development"),"EIA1","EIA2","EIA3O1","EIA3O2")
+# development <- c("CL_current.development_20140924.CAZ_ME.curves.txt","CL_infrastructure_20140924.CAZ_ME.curves.txt","CL_brm.extraction_20140924.CAZ_ME.curves.txt","CL_pines_20140924.CAZ_ME.curves.txt","CL_cumulative.development_20140924.CAZ_ME.curves.txt","CL_eia1_20140924.CAZ_ME.curves.txt" ,"CL_eia2_20140924.CAZ_ME.curves.txt", "CL_eia3O1_20140924.CAZ_ME.curves.txt" ,"CL_eia3O2_20140924.CAZ_ME.curves.txt")
+  # dev.label <- c(paste0("1. Urban","\n","    Industrial"),"2. Infrastructure","3. Mining", "4. Forestry", paste0("5. Cumulative","\n","    development"),"EIA1","EIA2","EIA3O1","EIA3O2")
+  
+  development <- c("CL.scenario1_urban_20160112.CAZ_ME.curves.txt","CL.scenario2_industrial_20160112.CAZ_ME.curves.txt","CL.scenario3_rural_residential_20160112.CAZ_ME.curves.txt","CL.scenario4_infrastructure_20160112.CAZ_ME.curves.txt","CL.scenario5_pines_20160112.CAZ_ME.curves.txt","CL.scenario6_mining_20160112.CAZ_ME.curves.txt" ,"CL.scenario7_cumulative_20160112.CAZ_ME.curves.txt", "CL_.scenario1_1_eia1_20160112.CAZ_ME.curves.txt" ,"CL_.scenario1_2_eia2_20160112.CAZ_ME.curves.txt","CL_.scenario1_3a_eia3_option1_20160112.CAZ_ME.curves.txt","CL_.scenario1_3b_eia3_option2_20160112.CAZ_ME.curves.txt","CL_.scenario1_4_development_footprint_20160112.CAZ_ME.curves.txt")
+  dev.label <- c("1. Urban","2. Industrial",paste0("5. Rural","\n","    residential"),"4. Infrastructure","6. Forestry", "6. Mining", paste0("7. Cumulative","\n","    development"),"EIA1","EIA2","EIA3O1","EIA3O2","Development footprint")
 
 png(paste0(output_path,"Figure3.png"),height=62,width=82,units="mm",bg="transparent",pointsize=10,res=600)
 # pdf(paste0(output_path,"Figure3.pdf"),height=62*0.0393700787,width=82*0.0393700787,pointsize=10)

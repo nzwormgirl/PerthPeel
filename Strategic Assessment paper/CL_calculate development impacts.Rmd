@@ -116,33 +116,32 @@ tryCatch({
         }
       
   
-        write.csv(cleared_area,paste0(output_path,"tables/cleared_area_",analysis.date,".csv"))
+        write.csv(cleared_area,paste0(output_path,"tables/cleared_area_",analysis.date,".csv"), row.names = F)
       })
 
 ```
 
 ```{r produce baseline priority map}
 
-zonation_priority <- raster(paste0(output_path,"CL.baseline_",analysis.date,".CAZ_E.rank.compressed.tif"))
-
-PP.mask <- raster(paste0(computer,"/GIS_Data/Perth-Peel/mask files/perth.mask.tif"))
-PP.clipping.mask <- raster(paste0(computer,"/GIS_Data/Perth-Peel/mask files/perth.clipping.mask.tif"))
-PP.shp <- readShapePoly(paste0(computer,"/GIS_data/Perth-Peel/DOP/DoP_StrategicAssessmentStudyBoundary_Extended_20121004_GDA94.shp"), proj4=GDA94)
-  PP.shp <- spTransform(PP.shp,GDA94.50)
-
-IBRA.shp <- readShapePoly(paste0(computer,"/GIS_data/Perth-Peel/environmental data/PP_IBRA.shp"), proj4=GDA94.50)
-
-IsBecomes.zonation <- matrix(c(0,0.50,1, 0.50,0.70,2,0.70,0.85,3,0.85,0.90,4,0.90,0.95,5,0.95,1.00,6), ncol=3, byrow=TRUE)
+  zonation_priority <- raster(paste0(output_path,"CL.baseline_",analysis.date,".CAZ_E.rank.compressed.tif"))
   
-reclassified.zonation <- reclassify(zonation_priority,IsBecomes.zonation)
+  PP.mask <- raster(paste0(computer,"/GIS_Data/Perth-Peel/mask files/perth.mask.tif"))
+  PP.clipping.mask <- zonation_priority
+    PP.clipping.mask[!is.na(PP.clipping.mask)] <- 0
+  PP.shp <- readShapePoly(paste0(computer,"/GIS_data/Perth-Peel/DOP/DoP_StrategicAssessmentStudyBoundary_Extended_20121004_GDA94.shp"), proj4=GDA94)
+    PP.shp <- spTransform(PP.shp,GDA94.50)
 
-leg.labels <- c("top 5%","top 10%","top 15%","top 30%","top 50%","rest")
-breaks <- c(0,0.2,0.5,0.75,0.9,0.95,0.98,1)
-colours <- c("black","dark blue","blue","yellow","magenta","dark red", "red")
-
-top.30 <- zonation_priority
-  top.30[top.30 < 0.7] <-NA
-  top.30[!is.na(top.30)] <- 1
+  IsBecomes.zonation <- matrix(c(0,0.50,1, 0.50,0.70,2,0.70,0.85,3,0.85,0.90,4,0.90,0.95,5,0.95,1.00,6), ncol=3, byrow=TRUE)
+    
+  reclassified.zonation <- reclassify(zonation_priority,IsBecomes.zonation)
+  
+  leg.labels <- c("top 5%","top 10%","top 15%","top 30%","top 50%","rest")
+  breaks <- c(0,0.2,0.5,0.75,0.9,0.95,0.98,1)
+  colours <- c("black","dark blue","blue","yellow","magenta","dark red", "red")
+  
+  top.30 <- zonation_priority
+    top.30[top.30 < 0.7] <-NA
+    top.30[!is.na(top.30)] <- 1
 
   if(save.plots==TRUE){
     
@@ -268,7 +267,7 @@ conflict.table <- data.frame(scenario=dev.label,top.conflict.area=NA,protected.c
  for (i in seq(development)){
   cat("Calculating conflicts for",dev.label[i],"\n")
   r <- scenarios[[which(names(scenarios) %in% development[i]==TRUE)]]
-    r[r==2] <- NA
+    r[r==3] <- NA
          
 #    png(paste0(output_path,development[i],".png"),height=10,width=7,units="cm",res=300, bg="transparent")
 #     par(mar=c(0.25,1.5,0.25,0), oma=c(0,0,0,0))   
@@ -466,7 +465,7 @@ loss.table <- loss.table[order(loss.table$order),]
 ```
 
 
-```{r estimate offsets, evaluate=F}
+```{r estimate offsets, eval=F}
 # read in cumulative offsets curve data
 offsets.files <- files[grepl("offsets",files)]
 
@@ -531,7 +530,7 @@ dev.off()
 write.csv(offsets.table,paste0(output_path,"tables/offsets_",analysis.date,".csv"),row.names=F)
 ```
 
-```{r plot offsets, evaluate = F}
+```{r plot offsets, eval = F}
 offsets <- gsub("\\.curves\\.txt","",offsets.table$scenario)
 
 for(i in 1:5){
