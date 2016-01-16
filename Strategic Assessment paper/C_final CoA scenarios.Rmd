@@ -16,8 +16,8 @@ Raster values range from 1-5 to force the order in which zonation removes cells
 rm(list=ls())
 start.time <- proc.time()
 
-  # computer <- "K:/Super Computer Data/"
-  computer <- "Z:/Amy/"
+  computer <- "K:/Super Computer Data/"
+  # computer <- "Z:/Amy/"
 
   envi.directory <- paste0(computer, "GIS_data/Perth-Peel/")
   output.directory <- paste0(computer, "GIS_data/Perth-Peel/zonation/100m/Conservation_Letters/final/scenarios/")
@@ -44,7 +44,7 @@ value = the value that cells are to be given where the shapefile is present in t
 transform = a logical value that determines whether the function transforms the shapefile data prior to conversion.  If set to TRUE, then you need to make sure that the CRS values are set correctly.
 
 ```{r create raster function}
-create.raster <- function (s, mask.raster, raster.label, value, transform=TRUE) {
+create.raster <- function (s, mask.raster, raster.label, value, transform=TRUE, save=TRUE, plot=TRUE) {
     
    if(transform==TRUE) {
      proj4string(s) <- "+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs"
@@ -53,10 +53,13 @@ create.raster <- function (s, mask.raster, raster.label, value, transform=TRUE) 
     
   r <- rasterize(s,mask.raster)
     r[!is.na(r)] <- value
-    r <- mask(merge(r,mask.raster),mask.raster, filename=paste0(output.directory,raster.label), format="GTiff", overwrite=T)
+    r <- mask(merge(r,mask.raster),mask.raster)
+    
     names(r) <- rep(raster.label,length(names(r)))
     
-    plot(r, main=raster.label, zlim=c(1,5))
+    if(save==TRUE) writeRaster(r,filename=paste0(output.directory,raster.label), format="GTiff", overwrite=T)
+    
+    if(plot==TRUE) plot(r, main=raster.label, zlim=c(1,6))
 
     return(r)
   }
@@ -115,8 +118,26 @@ create.raster <- function (s, mask.raster, raster.label, value, transform=TRUE) 
   dop.development.footprint <- readShapePoly(paste0(envi.directory,"DOP/DoP_Development_Footprint_20140310.shp"))
   dop.development.footprint.raster <- create.raster(dop.development.footprint[dop.development.footprint$DEVELOPED=="Urban Undeveloped",], perth, raster.label="scenario1_4_development_footprint",value=1,transform=FALSE)
   
-
 ```
+
+```{r merge eia scenarios with existing urban}
+  # existing urban
+  dop.existing.urban.raster <- create.raster(dop.eia1[dop.eia1$Land_Type=="Developed Urban",],perth, raster.label="existing.urban", value=1, transform=FALSE, save=FALSE)
+    dop.existing.urban.raster[dop.existing.urban.raster==3] <- NA
+  
+  dop.eia1.existing.raster <- merge(dop.existing.urban.raster,dop.eia1.raster,filename="scenario1_1_eia1_existing", format="GTiff", overwrite=T)
+  
+  dop.eia2.existing.raster <- merge(dop.existing.urban.raster,dop.eia2.raster,filename="scenario1_2_eia2_existing", format="GTiff", overwrite=T)
+  
+  dop.EIA3_Option1_30102013.existing.raster <- merge(dop.existing.urban.raster,dop.EIA3_Option1_30102013.raster,filename="scenario1_3a_eia3_2ption1_existing", format="GTiff", overwrite=T)
+  
+  dop.EIA3_Option2_30102013.existing.raster <- merge(dop.existing.urban.raster,dop.eia1.raster,filename="scenario1_3b_eia3_option2_existing", format="GTiff", overwrite=T)
+  
+ dop.development.footprint.existing.raster <- merge(dop.existing.urban.raster,dop.development.footprint.raster,filename="scenario1_4_development_footprint_existing", format="GTiff", overwrite=T) 
+  
+  
+```
+
 
 All the scenarios need to be clipped by the vegetation layer to remove the areas that are already developed and, thus, not being considered.
 
