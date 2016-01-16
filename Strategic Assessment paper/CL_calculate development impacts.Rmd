@@ -120,34 +120,14 @@ tryCatch({
   
         write.csv(cleared_area,paste0(output_path,"tables/cleared_area_",analysis.date,".csv"), row.names = F)
       })
+      
+  cleared_area <- read.csv(paste0(output_path,"tables/cleared_area_",analysis.date,".csv"))
 
 ```
 
 ```{r produce baseline priority map}
 
-<<<<<<< HEAD
   zonation_priority <- raster(paste0(output_path,"CL.baseline_",analysis.date,".CAZ_E.rank.compressed.tif"))
-=======
-zonation_priority <- raster(paste0(output_path,"CL.baseline_",analysis.date,".CAZ_E.rank.compressed.tif"))
-
-<<<<<<< HEAD
-PP.mask <- raster("~/GIS_Data/Perth-Peel/mask files/perth.mask.tif")
-PP.clipping.mask <- raster("~/GIS_Data/Perth-Peel/mask files/perth.clipping.mask.tif")
-PP.shp <- readShapePoly("~/GIS_data/Perth-Peel/mask files/DoP_StrategicAssessmentStudyBoundary_Extended_20121004_GDA94.shp", proj4=GDA94)
-  PP.shp <- spTransform(PP.shp,GDA94.50)
-
-IBRA.shp <- readShapePoly("~/GIS_data/Perth-Peel/mask files/PP_IBRA.shp", proj4=GDA94.50)
-=======
-PP.mask <- raster(paste0(computer,"/GIS_Data/Perth-Peel/mask files/perth.mask.tif"))
-PP.clipping.mask <- raster(paste0(computer,"/GIS_Data/Perth-Peel/mask files/perth.clipping.mask.tif"))
-PP.shp <- readShapePoly(paste0(computer,"/GIS_data/Perth-Peel/DOP/DoP_StrategicAssessmentStudyBoundary_Extended_20121004_GDA94.shp"), proj4=GDA94)
-  PP.shp <- spTransform(PP.shp,GDA94.50)
-
-IBRA.shp <- readShapePoly(paste0(computer,"/GIS_data/Perth-Peel/environmental data/PP_IBRA.shp"), proj4=GDA94.50)
->>>>>>> 472c7fae9754124bc7282c5e05d1544c879f536d
-
-IsBecomes.zonation <- matrix(c(0,0.50,1, 0.50,0.70,2,0.70,0.85,3,0.85,0.90,4,0.90,0.95,5,0.95,1.00,6), ncol=3, byrow=TRUE)
->>>>>>> 1a096226ecce0a502ce2cbb8f556ea0ab0c14d5a
   
   PP.mask <- raster(paste0(computer,"/GIS_Data/Perth-Peel/mask files/perth.mask.tif"))
   PP.clipping.mask <- zonation_priority
@@ -191,7 +171,7 @@ IsBecomes.zonation <- matrix(c(0,0.50,1, 0.50,0.70,2,0.70,0.85,3,0.85,0.90,4,0.9
     #   legend("bottomright",leg.labels,col=rev(blue2red(7)),pch=15,bty="n",title="Conservation priority",cex=0.7)
     #   scalebar(10000,type="line",divs=3,below="",cex=0.6,label=c("","10km",""))
     dev.off()
-    png(paste0(output_path,"top30_raster.png"),height=10,width=7,units="cm",res=300, bg="transparent")
+    png(paste0(output_path,"figures/top30_raster.png"),height=10,width=7,units="cm",res=300, bg="transparent")
     par(mar=c(0.25,1.5,0.25,0), oma=c(0,0,0,0))
     plot(PP.clipping.mask,col="whitesmoke",legend=F,box=F,axes=F)
       plot(top.30,col="darkgreen",legend=F,add=T)
@@ -282,16 +262,11 @@ for(h in seq(protected.table$scenario)){
 
 ```{r make scenario maps}
 
-<<<<<<< HEAD
-development <- c("scenario3_development.footprint.lgz","scenario8_infrastructure","scenario6_brm.extraction","scenario7_pines","scenario9_cumulative.development.lgz","CL_EIA1","CL_EIA2","CL_EIA3O1","CL_EIA3O2")
-  dev.label <- c("1. Urban/Industrial","2. Infrastructure","3. Mining", "4. Forestry", "5. Cumulative development","EIA1","EIA2","EIA3O1","EIA3O2")
-=======
-development <- c("scenario1_urban","scenario2_industrial","scenario3_ruralres","scenario4_infrastructure","scenario5_pines","scenario6_brm","scenario7_cumulative","scenario1_1_eia1","scenario1_2_eia2", "scenario1_3a_eia3_option1", "scenario1_3b_eia3_option2", "scenario1_4_development_footprint")
+  development <- c("scenario1_urban","scenario2_industrial","scenario3_ruralres","scenario4_infrastructure","scenario5_pines","scenario6_brm","scenario7_cumulative","scenario1_1_eia1","scenario1_2_eia2", "scenario1_3a_eia3_option1", "scenario1_3b_eia3_option2", "scenario1_4_development_footprint")
   dev.label <- c("1. Urban","2. Industrial","3. Rural Residential", "4. Infrastructure", "5. Forestry", "6. Mining", "7. Cumulative","1.1 EIA1","1.2 EIA2", "1.3a EIA3 Option1", "1.3b EIA3 Option2", "1.4 Development Footprint")
->>>>>>> 472c7fae9754124bc7282c5e05d1544c879f536d
 
-conflict.table <- data.frame(scenario=dev.label,top.conflict.area=NA,protected.conflict.area=NA,prop.dev.t30=NA,prop.dev.pa=NA,prop.top=NA,prop.protected=NA,prop.protected1=NA,prop.protected2=NA,prop.protected3=NA)
-  conflict.table <- conflict.table[order(conflict.table$scenario),]
+  conflict.table <- data.frame(scenario=dev.label,top.conflict.area=NA,protected.conflict.area=NA,prop.dev.t30=NA,prop.dev.pa=NA,prop.top=NA,prop.protected=NA,prop.protected1=NA,prop.protected2=NA,prop.protected3=NA, mask.layer=development)
+  # conflict.table <- conflict.table[order(conflict.table$scenario),]
 
  for (i in seq(development)){
   cat("Calculating conflicts for",dev.label[i],"\n")
@@ -351,16 +326,11 @@ conflict.table <- data.frame(scenario=dev.label,top.conflict.area=NA,protected.c
 #   
 #   dev.off()
   
+  png(paste0(output_path,"figures/",development[i],"_development_conflicts.png"),height=20,width=15,units="cm",res=300, bg="transparent",pointsize=14)
+       par(mar=c(0.25,1.5,0.25,4), oma=c(0,0,0,0))
+       plot(r,col=c("grey30","grey30","whitesmoke"),legend=F,box=F,axes=F)
+  dev.off()
 
-<<<<<<< HEAD
-#png(paste0(output_path,development[i],"_development_conflicts.png"),height=20,width=15,units="cm",res=300, bg="transparent",pointsize=14)
-#     par(mar=c(0.25,1.5,0.25,4), oma=c(0,0,0,0))
-#     plot(r,col=c("grey30","grey30","whitesmoke"),legend=F,box=F,axes=F)
-=======
-png(paste0(output_path,"figures/",development[i],"_development_conflicts.png"),height=20,width=15,units="cm",res=300, bg="transparent",pointsize=14)
-     par(mar=c(0.25,1.5,0.25,4), oma=c(0,0,0,0))
-     plot(r,col=c("grey30","grey30","whitesmoke"),legend=F,box=F,axes=F)
->>>>>>> 472c7fae9754124bc7282c5e05d1544c879f536d
 #       plot(r,col="grey30",add=T,legend=F)
 
 #  r[r==3] <- NA
@@ -385,13 +355,8 @@ png(paste0(output_path,"figures/",development[i],"_development_conflicts.png"),h
 #   
 #   dev.off()
 
-
-
-<<<<<<< HEAD
-write.csv(conflict.table,paste0(output_path,"CL_conflict.table_",analysis.date,"_v2.csv"),row.names=F)
-=======
 write.csv(conflict.table,paste0(output_path,"tables/CL_conflict.table_",analysis.date,".csv"),row.names=F)
->>>>>>> 472c7fae9754124bc7282c5e05d1544c879f536d
+
 ```
 
 ```{r assess impacts}
@@ -407,83 +372,61 @@ write.csv(conflict.table,paste0(output_path,"tables/CL_conflict.table_",analysis
 # match scenario with mask layer
   ## this is a bit of a hack as I didn't give them the same labels - fail
   ## need to make sure that these get updated
-<<<<<<< HEAD
-  loss.table[,1] <- gsub('.curves.txt', '', loss.files)
-#     loss.table$mask.layer <- gsub(paste0("_",analysis.date),"",gsub("CL_","",loss.table[,1]))
-    loss.table$mask.layer <- c("scenario6_brm.extraction",
-                               "scenario9_cumulative.development.lgz",
-                               "scenario9_cumulative.development",
-                               "scenario3_development.footprint.lgz",
-                               "scenario3_development.footprint",
-                               "CL_EIA1",
-                               "CL_EIA2",
-                               "CL_EIA3O1",
-                               "CL_EIA3O2",
-                               "scenario8_infrastructure",
-                               "scenario7_pines",
-                               "protected.areas")
-    loss.table$order <- c(4,7,6,2,1,9,10,11,12,3,5,8)
-=======
-  # loss.table[,1] <- gsub('.curves.txt', '', loss.files)
-    loss.table$mask.layer <- gsub('.curves.txt', '', gsub(paste0("_",analysis.date,".CAZ_ME"), "",gsub("CL.","",loss.files)))
-    loss.table$V1 <- c("1.1 EIA1","1.2 EIA2", "1.3a EIA3 Option1", "1.3b EIA3 Option2", "1.4 Development Footprint", "1. Urban","2. Industrial","3. Rural Residential", "4. Infrastructure", "5. Forestry", "6. Mining", "7. Cumulative")
-    # loss.table$mask.layer <- c("scenario6_brm.extraction", "scenario9_cumulative.development", "scenario3_development.footprint", "CL_EIA1", "CL_EIA2", "CL_EIA3O1", "CL_EIA3O2", "scenario8_infrastructure", "scenario7_pines", "protected.areas")
-    loss.table$order <- c(8,9,10,11,12,1,2,3,4,5,6,7)
->>>>>>> 472c7fae9754124bc7282c5e05d1544c879f536d
 
-# calculating impact numbers for each scenario
-for (h in 1:length(loss.files)){
-  cat("calculating impact for",loss.table[h,1],"\n")
-# Name of original curves file
-  input <- paste0(output_path, loss.files[h])
+  loss.table$mask.layer <- gsub('.curves.txt', '', gsub(paste0("_",analysis.date,".CAZ_ME"), "",gsub("CL.","",loss.files)))
+  loss.table$V1 <- c("1.1 EIA1","1.2 EIA2", "1.3a EIA3 Option1", "1.3b EIA3 Option2", "1.4 Development Footprint", "1. Urban","2. Industrial","3. Rural Residential", "4. Infrastructure", "5. Forestry", "6. Mining", "7. Cumulative")
+  # loss.table$mask.layer <- c("scenario6_brm.extraction", "scenario9_cumulative.development", "scenario3_development.footprint", "CL_EIA1", "CL_EIA2", "CL_EIA3O1", "CL_EIA3O2", "scenario8_infrastructure", "scenario7_pines", "protected.areas")
+  loss.table$order <- c(8,9,10,11,12,1,2,3,4,5,6,7)
 
-try({
-  # Upload the curves file
-    curves <- read.table(input, skip=1, header=F, sep='')
-      colnames(curves) <- c('Prop_landscape_lost', 'cost_needed_for_top_fraction', 'min_prop_rem', 'ave_prop_rem', 'W_prop_rem', 'ext-1', 'ext-2', names)
-    
-  # extract cleared area from clipped scenario
-    developed <- cleared_area$cleared[cleared_area$scenario==loss.table$mask.layer[h]]
-    cleared <- cleared_area$cleared[cleared_area$scenario==paste0(loss.table$mask.layer[h],"_clipped")]
-    
-  # identify curve data associated with cleared area
-    a <- curves[which(curves$Prop_landscape_lost>cleared)[1],] # first line greater than cleared area - conservative
-    #a <- curves[which.min(abs(curves$Prop_landscape_lost-cleared)),] # line closest in value to cleared area
-    
-    # calculate impacts
-    loss.table[h,2] <- round(developed*100,2)
-    loss.table[h,3] <- round(cleared*100,2)
-    loss.table[h,4] <- 100-(a[, 4]*100)
-    loss.table[h,5] <- 100-(a[, 3]*100)
+  # calculating impact numbers for each scenario
+  for (h in 1:length(loss.files)){
+    cat("calculating impact for",loss.table[h,1],"\n")
+  # Name of original curves file
+    input <- paste0(output_path, loss.files[h])
   
-    # subset a to just keep species distribution data
-    a <- a[,8:ncol(a)]
-    distribution.table[,h] <- t(a)
+  try({
+    # Upload the curves file
+      curves <- read.table(input, skip=1, header=F, sep='')
+        colnames(curves) <- c('Prop_landscape_lost', 'cost_needed_for_top_fraction', 'min_prop_rem', 'ave_prop_rem', 'W_prop_rem', 'ext-1', 'ext-2', names)
+      
+    # extract cleared area from clipped scenario
+      developed <- cleared_area$cleared[cleared_area$scenario==loss.table$mask.layer[h]]
+      cleared <- cleared_area$cleared[cleared_area$scenario==paste0(loss.table$mask.layer[h],"_clipped")]
+      
+    # identify curve data associated with cleared area
+      a <- curves[which(curves$Prop_landscape_lost>cleared)[1],] # first line greater than cleared area - conservative
+      #a <- curves[which.min(abs(curves$Prop_landscape_lost-cleared)),] # line closest in value to cleared area
+      
+      # calculate impacts
+      loss.table[h,2] <- round(developed*100,2)
+      loss.table[h,3] <- round(cleared*100,2)
+      loss.table[h,4] <- 100-(a[, 4]*100)
+      loss.table[h,5] <- 100-(a[, 3]*100)
     
-    loss.table[h,6] <- length(which(a == 0))
-    loss.table[h,7] <- paste(gsub("PP\\/|\\.PP|\\.tif|SSI|SDM","",gsub("_"," ",colnames(a[which(a == 0)]))), collapse=', ')
-    loss.table[h,8] <- length(which(a > 0 & a <= 0.1))
-    loss.table[h,9] <- paste(gsub("PP\\/|\\.PP|\\.tif|SSI|SDM","",gsub("_"," ",colnames(a[which(a > 0 & a <= 0.1)]))), collapse=', ')
-    loss.table[h,10] <- length(which(a > 0.1 & a <= 0.25))
-    loss.table[h,11] <- paste(gsub("PP\\/|\\.PP|\\.tif|SSI|SDM","",gsub("_"," ",colnames(a[which(a > 0.1 & a <= 0.25)]))), collapse=', ')
-    loss.table[h,12] <- length(which(a > 0.25 & a <= 0.5))
-    loss.table[h,13] <- paste(gsub("PP\\/|\\.PP|\\.tif|SSI|SDM","",gsub("_"," ",colnames(a[which(a > 0.25 & a <= 0.5)]))), collapse=', ')
+      # subset a to just keep species distribution data
+      a <- a[,8:ncol(a)]
+      distribution.table[,h] <- t(a)
+      
+      loss.table[h,6] <- length(which(a == 0))
+      loss.table[h,7] <- paste(gsub("PP\\/|\\.PP|\\.tif|SSI|SDM","",gsub("_"," ",colnames(a[which(a == 0)]))), collapse=', ')
+      loss.table[h,8] <- length(which(a > 0 & a <= 0.1))
+      loss.table[h,9] <- paste(gsub("PP\\/|\\.PP|\\.tif|SSI|SDM","",gsub("_"," ",colnames(a[which(a > 0 & a <= 0.1)]))), collapse=', ')
+      loss.table[h,10] <- length(which(a > 0.1 & a <= 0.25))
+      loss.table[h,11] <- paste(gsub("PP\\/|\\.PP|\\.tif|SSI|SDM","",gsub("_"," ",colnames(a[which(a > 0.1 & a <= 0.25)]))), collapse=', ')
+      loss.table[h,12] <- length(which(a > 0.25 & a <= 0.5))
+      loss.table[h,13] <- paste(gsub("PP\\/|\\.PP|\\.tif|SSI|SDM","",gsub("_"," ",colnames(a[which(a > 0.25 & a <= 0.5)]))), collapse=', ')
+    
+      plot(curves$Prop_landscape_lost,curves$ave_prop_rem,type="l",main=loss.table[h,1])
+        lines(curves$Prop_landscape_lost,curves$min_prop_rem,lty=2)
+        abline(v=cleared,col="red")
+    
+    })
+   
+  }
   
-    plot(curves$Prop_landscape_lost,curves$ave_prop_rem,type="l",main=loss.table[h,1])
-      lines(curves$Prop_landscape_lost,curves$min_prop_rem,lty=2)
-      abline(v=cleared,col="red")
-  
-  })
- 
-}
+    colnames(loss.table) <- c('Scenario', '%area_developed', '%_area_cleared', 'mean_loss(%)', 'max_loss(%)', '100%_loss_#', '100%_loss_sp', '90%_loss_#', '90%_loss_sp', '75%_loss_#', '75%_loss_sp', '50%_loss_#', '50%_loss_sp','mask.layer','order')
 
-  colnames(loss.table) <- c('Scenario', '%area_developed', '%_area_cleared', 'mean_loss(%)', 'max_loss(%)', '100%_loss_#', '100%_loss_sp', '90%_loss_#', '90%_loss_sp', '75%_loss_#', '75%_loss_sp', '50%_loss_#', '50%_loss_sp','mask.layer','order')
-
-<<<<<<< HEAD
- write.csv(distribution.table, paste0(output_path, '/CL_distribution.impacts_',analysis.date,'_v2.csv'), row.names=F)
-=======
- write.csv(distribution.table, paste0(output_path, 'tables/CL_distribution.impacts_',analysis.date,'.csv'), row.names=F)
->>>>>>> 472c7fae9754124bc7282c5e05d1544c879f536d
+  write.csv(distribution.table, paste0(output_path, 'tables/CL_distribution.impacts_',analysis.date,'.csv'), row.names=F)
 
 ```
 
@@ -519,13 +462,9 @@ trim <- function (x) gsub("^\\s+|\\s+$", "", x)
     
   }
 
-loss.table <- loss.table[order(loss.table$order),]
-<<<<<<< HEAD
- write.csv(loss.table, paste0(output_path, '/CL_Development plan impacts_',analysis.date,'_v2.csv'), row.names=F)
-=======
- write.csv(loss.table, paste0(output_path, 'tables/CL_Development plan impacts_',analysis.date,'.csv'), row.names=F)
->>>>>>> 472c7fae9754124bc7282c5e05d1544c879f536d
+  loss.table <- loss.table[order(loss.table$order),]
 
+ write.csv(loss.table, paste0(output_path, 'tables/CL_Development plan impacts_',analysis.date,'.csv'), row.names=F)
 
 ```
 
