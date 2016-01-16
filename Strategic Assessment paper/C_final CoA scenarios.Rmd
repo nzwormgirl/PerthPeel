@@ -129,7 +129,7 @@ create.raster <- function (s, mask.raster, raster.label, value, transform=TRUE, 
   
   dop.eia2.existing.raster <- merge(dop.existing.urban.raster,dop.eia2.raster,filename="scenario1_2_eia2_existing", format="GTiff", overwrite=T)
   
-  dop.EIA3_Option1_30102013.existing.raster <- merge(dop.existing.urban.raster,dop.EIA3_Option1_30102013.raster,filename="scenario1_3a_eia3_2ption1_existing", format="GTiff", overwrite=T)
+  dop.EIA3_Option1_30102013.existing.raster <- merge(dop.existing.urban.raster,dop.EIA3_Option1_30102013.raster,filename="scenario1_3a_eia3_option1_existing", format="GTiff", overwrite=T)
   
   dop.EIA3_Option2_30102013.existing.raster <- merge(dop.existing.urban.raster,dop.eia1.raster,filename="scenario1_3b_eia3_option2_existing", format="GTiff", overwrite=T)
   
