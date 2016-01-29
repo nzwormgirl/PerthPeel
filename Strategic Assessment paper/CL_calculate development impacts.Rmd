@@ -22,7 +22,7 @@ packages(ggplot2)
 # computer
 # computer <- "~"
 #computer <- "//654cw-20990/Amy"
-computer <- "K:/Super Computer Data"
+computer <- "E:/Super Computer Data"
 
 # define paths for input and output files
 input_path <- paste0(computer,'/GIS_data/Perth-Peel/zonation/100m/')
@@ -119,12 +119,13 @@ tryCatch({
   cleared_area <- read.csv(paste0(output_path,"tables/CL_cleared_area_",analysis.date,".csv"))
   }, error = function(err){
   
-      cleared_area <- data.frame(scenario=scenario.names,cleared=NA,cleared.ha=NA,protected=NA,protected.ha=NA,total=NA)
+      
+      })cleared_area <- data.frame(scenario=scenario.names,cleared=NA,cleared.ha=NA,protected=NA,protected.ha=NA,total=NA)
 
         for(i in 1:nlayers(scenarios)){
           r <- scenarios[[i]]
           cleared_area$total[i] <- length(r[!is.na(r)])
-          cleared_area$cleared.ha[i] <- length(r[r<2])
+          cleared_area$cleared.ha[i] <- length(r[r<=2])
           cleared_area$cleared[i] <- cleared_area$cleared.ha[i]/cleared_area$total[i]
           cleared_area$protected.ha[i] <- length(r[r>3])
           cleared_area$protected[i] <- cleared_area$protected.ha[i]/cleared_area$total[i]
@@ -133,7 +134,6 @@ tryCatch({
       
   
         write.csv(cleared_area,paste0(output_path,"tables/CL_cleared_area_",analysis.date,".csv"), row.names = F)
-      })
       
   cleared_area <- read.csv(paste0(output_path,"tables/CL_cleared_area_",analysis.date,".csv"))
 
@@ -329,8 +329,8 @@ for(h in seq(protected.table$scenario)){
 
 ```{r make scenario maps & assess conflicts}
 
-  development <- c("scenario1_urban","scenario2_industrial","scenario3_ruralres","scenario4_infrastructure","scenario5_pines","scenario6_brm","scenario7_cumulative","scenario1_1_eia1","scenario1_2_eia2", "scenario1_3a_eia3_option1", "scenario1_3b_eia3_option2", "scenario1_4_development_footprint","scenario1_1_eia1_existing","scenario1_2_eia2_existing", "scenario1_3a_eia3_option1_existing", "scenario1_3b_eia3_option2_existing", "scenario1_4_development_footprint_existing","coa.urban.no.existing")
-  dev.label <- c("1. Urban","2. Industrial","3. Rural Residential", "4. Infrastructure", "5. Forestry", "6. Mining", "7. Cumulative","1.1 EIA1","1.2 EIA2", "1.3a EIA3 Option1", "1.3b EIA3 Option2", "1.4 Development Footprint","1.1 EIA1 existing","1.2 EIA2 existing", "1.3a EIA3 Option1 existing", "1.3b EIA3 Option2 existing", "1.4 Development Footprint existing","1a. Urban")
+  development <- c("scenario1_urban","scenario2_industrial","scenario3_ruralres","scenario4_infrastructure","scenario5_pines","scenario6_brm","scenario7_cumulative","scenario1_1_eia1","scenario1_2_eia2", "scenario1_3a_eia3_option1", "scenario1_3b_eia3_option2", "scenario1_4_development_footprint","scenario1_1_eia1_existing","scenario1_2_eia2_existing", "scenario1_3a_eia3_option1_existing", "scenario1_3b_eia3_option2_existing", "scenario1_4_development_footprint_existing","coa.urban.no.existing", "CL_EIA1","CL_EIA2","CL_EIA3O1","CL_EIA3O2","CL_EIA4")
+  dev.label <- c("1. Urban","2. Industrial","3. Rural Residential", "4. Infrastructure", "5. Forestry", "6. Mining", "7. Cumulative","1.1 EIA1","1.2 EIA2", "1.3a EIA3 Option1", "1.3b EIA3 Option2", "1.4 Development Footprint","1.1 EIA1 existing","1.2 EIA2 existing", "1.3a EIA3 Option1 existing", "1.3b EIA3 Option2 existing", "1.4 Development Footprint existing","1a. Urban","EIA1","EIA2","EIA3O1","EIA3O2","EIA4")
 
   conflict.table <- data.frame(scenario=dev.label,top.conflict.area=NA,protected.conflict.area=NA,prop.dev.t30=NA,prop.dev.pa=NA,prop.top=NA,prop.protected=NA,prop.protected1=NA,prop.protected2=NA,prop.protected3=NA, mask.layer=development)
   # conflict.table <- conflict.table[order(conflict.table$scenario),]
@@ -443,8 +443,9 @@ write.csv(conflict.table,paste0(output_path,"tables/CL_conflict.table_",analysis
   ## need to make sure that these get updated
 
   loss.table$mask.layer <- gsub('.curves.txt', '', gsub(paste0("_",analysis.date,".CAZ_ME"), "",gsub("CL.","",loss.files)))
-  loss.table$scenario <- c("1.1 EIA1","1.1 EIA1 existing","1.2 EIA2","1.2 EIA2 existing", "1.3a EIA3 Option1", "1.3a EIA3 Option1 existing", "1.3b EIA3 Option2", "1.3b EIA3 Option2 existing", "1.4 Development Footprint", "1.4 Development Footprint existing", "1. Urban","2. Industrial","3. Rural Residential", "4. Infrastructure", "5. Forestry", "6. Mining", "7. Cumulative")
-  loss.table$order <- c(8,13,9,14,10,15,11,16,12,17,1,2,3,4,5,6,7)
+    loss.table$mask.layer <- gsub('EIA','CL_EIA',loss.table$mask.layer)
+  loss.table$scenario <- c("EIA1","EIA2","EIA3O1","EIA3O2","EIA4","1.1 EIA1","1.1 EIA1 existing","1.2 EIA2","1.2 EIA2 existing", "1.3a EIA3 Option1", "1.3a EIA3 Option1 existing", "1.3b EIA3 Option2", "1.3b EIA3 Option2 existing", "1.4 Development Footprint", "1.4 Development Footprint existing", "1. Urban","2. Industrial","3. Rural Residential", "4. Infrastructure", "5. Forestry", "6. Mining", "7. Cumulative")
+  loss.table$order <- c(18,19,20,21,22,8,13,9,14,10,15,11,16,12,17,1,2,3,4,5,6,7)
   
   # calculating impact numbers for each scenario
   for (h in 1:length(loss.files)){
@@ -544,9 +545,9 @@ write.csv(conflict.table,paste0(output_path,"tables/CL_conflict.table_",analysis
 # files <- gsub(paste0("_",analysis.date,'.CAZ_ME.curves.txt'),"",grep(paste0(analysis.date,'.CAZ_ME.curves.txt'), list.files(output_path), value=T))
 
 # create table for species of interest
-  special.sp.table <- d(scenario=loss.table$scenario, cleared=loss.table$area.cleared, mean.loss=loss.table$`mean.loss(%)`, Calyptorhynchus_latirostris=NA, cbc.feeding=NA, Drakaea_elastica=NA, Caladenia_huegelii=NA, Conospermum_undulatum=NA, Pseudocheirus_occidentalis=NA, "Limestone_ridges_(SCP_26a)"=NA, EPA_Biodiversity3_10pct=NA, EPA_Biodiversity3_30pct=NA, mask.layer=loss.table$mask.layer, fraction=NA)
+  special.sp.table <- d(scenario=loss.table$scenario, cleared.ha=loss.table$area.cleared.ha, cleared=loss.table$area.cleared, mean.loss=loss.table$`mean.loss(%)`, Calyptorhynchus_latirostris=NA, cbc.feeding=NA, Drakaea_elastica=NA, Caladenia_huegelii=NA, Conospermum_undulatum=NA, Pseudocheirus_occidentalis=NA, "Limestone_ridges_(SCP_26a)"=NA, EPA_Biodiversity3_10pct=NA, EPA_Biodiversity3_30pct=NA, mask.layer=loss.table$mask.layer, fraction=NA)
 
-  colnames(special.sp.table) <- c("scenario","cleared","mean.loss","Calyptorhynchus_latirostris","cbc.feeding","Drakaea_elastica","Caladenia_huegelii","Conospermum_undulatum","Pseudocheirus_occidentalis","Limestone_ridges_(SCP_26a)","EPA_Biodiversity3_10pct","EPA_Biodiversity3_30pct","mask.layer","fraction")
+  colnames(special.sp.table) <- c("scenario","cleared.ha","cleared","mean.loss","Calyptorhynchus_latirostris","cbc.feeding","Drakaea_elastica","Caladenia_huegelii","Conospermum_undulatum","Pseudocheirus_occidentalis","Limestone_ridges_(SCP_26a)","EPA_Biodiversity3_10pct","EPA_Biodiversity3_30pct","mask.layer","fraction")
 
   special.sp.table$fraction <- special.sp.table$cleared/100
   
@@ -556,6 +557,7 @@ write.csv(conflict.table,paste0(output_path,"tables/CL_conflict.table_",analysis
     cat("Calculating special feature distributions in",as.character(special.sp.table$scenario[i]),"\n")
     
     input <- paste0(output_path, "CL.",special.sp.table$mask.layer[i],"_",analysis.date,".CAZ_ME.curves.txt")
+      input <- gsub('CL.CL_','CL.',input)
   
   #  if(grepl("baseline",special.sp.table$scenario[i])==TRUE) input<- gsub("ME","",input)
 
@@ -577,9 +579,9 @@ write.csv(conflict.table,paste0(output_path,"tables/CL_conflict.table_",analysis
   # subset special sp.table for Figure 4
   
   Fig4_table <- special.sp.table[,c("scenario","cleared","mean.loss","Caladenia_huegelii","Drakaea_elastica","Calyptorhynchus_latirostris","Pseudocheirus_occidentalis","Conospermum_undulatum")]
-    Fig4_table <- Fig4_table[Fig4_table$scenario %in% c("1.1 EIA1 existing","1.2 EIA2 existing","1. Urban"),]
+    Fig4_table <- Fig4_table[Fig4_table$scenario %in% c("1.1 EIA1 existing","1.2 EIA2 existing","1. Urban","EIA1","EIA2","EIA3O1","EIA3O2","EIA4"),]
     
-  write.csv(Fig4_table,paste0(output_path,"tables/Figure_special.sp.table_",analysis.date,".csv"),row.names=F)
+  write.csv(Fig4_table,paste0(output_path,"tables/Figure4_special.sp.table_",analysis.date,".csv"),row.names=F)
 
 ```
 
