@@ -119,8 +119,7 @@ tryCatch({
   cleared_area <- read.csv(paste0(output_path,"tables/CL_cleared_area_",analysis.date,".csv"))
   }, error = function(err){
   
-      
-      })cleared_area <- data.frame(scenario=scenario.names,cleared=NA,cleared.ha=NA,protected=NA,protected.ha=NA,total=NA)
+      cleared_area <- data.frame(scenario=scenario.names,cleared=NA,cleared.ha=NA,protected=NA,protected.ha=NA,total=NA)
 
         for(i in 1:nlayers(scenarios)){
           r <- scenarios[[i]]
@@ -134,6 +133,7 @@ tryCatch({
       
   
         write.csv(cleared_area,paste0(output_path,"tables/CL_cleared_area_",analysis.date,".csv"), row.names = F)
+  })
       
   cleared_area <- read.csv(paste0(output_path,"tables/CL_cleared_area_",analysis.date,".csv"))
 
@@ -587,7 +587,7 @@ write.csv(conflict.table,paste0(output_path,"tables/CL_conflict.table_",analysis
 
 
 ```{r save image}
-# save.image(paste0(output_path,"Analysis of Zonation runs from ",analysis.date,".Rdata"))
+ save.image(paste0(output_path,"Analysis of Zonation runs from ",analysis.date,".Rdata"))
 
 ```
 
