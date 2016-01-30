@@ -20,7 +20,7 @@ output: html_document
   # computer <- "~"
   # computer <- "//654cw-20990/Amy"
   # computer <- "Z:/Amy"
-  computer <- "K:/Super Computer Data"
+  computer <- "E:/Super Computer Data"
   
   # define paths for input and output files
   input_path <- paste0(computer,'/GIS_data/Perth-Peel/zonation/100m/Conservation_Letters/final/')
@@ -228,6 +228,34 @@ lay.out <- layout(matrix(c(1,1,1,1,1,2,2,2,2,2,3,4,5,6,7),5,3,byrow=F),widths = 
   legend('left', inset=c(0,0), c(leg.labels), col="black",fill=c(rev(pri.col[2:5]),"grey"), bty="n", title="Conservation priority", cex=1, xpd=NA, horiz=F,title.adj = 0)
 
 dev.off()
+
+```
+
+```{r identify development in Fig 2 boxes}
+
+  scenario.files <- dir(paste0(input_path,"scenarios/"),pattern=".tif$",full.names=T)
+    scenario.files <- scenario.files[grepl("urban|industrial|rural|infrastructure|pines|brm",scenario.files)]
+    scenario.files <- scenario.files[!grepl("no.existing",scenario.files)]
+    scenario.files <- scenario.files[grepl("clipped",scenario.files)]
+  scenarios <- stack(scenario.files)
+  scenario.names <- names(scenarios)
+  
+  output <- as.data.frame(matrix(NA,nrow=nrow(interest.points),ncol=length(scenario.names)+1))
+    names(output) <- c("Box",scenario.names)
+      
+  for(i in 1:nrow(interest.points)){
+    interest.extent <- extent(interest.points$x[i]-6000,interest.points$x[i]+6000,interest.points$y[i]-6000,interest.points$y[i]+6000)
+    output$Box[i] <- i
+    cat(paste0("Box ",i,":","\n"))
+    
+    for(j in seq(scenario.names)){
+      s <- scenarios[[j]]
+      s <- crop(s,interest.extent)
+      ncells <- length(s[s<3])/length(s[!is.na(s)])
+      output[i,j+1] <- round(ncells,3)
+      cat(paste0(" ",scenario.names[j],"\n"))
+    }
+  }
 
 ```
 
