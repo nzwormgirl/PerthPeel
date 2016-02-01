@@ -329,8 +329,8 @@ for(h in seq(protected.table$scenario)){
 
 ```{r make scenario maps & assess conflicts}
 
-  development <- c("scenario1_urban","scenario2_industrial","scenario3_ruralres","scenario4_infrastructure","scenario5_pines","scenario6_brm","scenario7_cumulative","scenario1_1_eia1","scenario1_2_eia2", "scenario1_3a_eia3_option1", "scenario1_3b_eia3_option2", "scenario1_4_development_footprint","scenario1_1_eia1_existing","scenario1_2_eia2_existing", "scenario1_3a_eia3_option1_existing", "scenario1_3b_eia3_option2_existing", "scenario1_4_development_footprint_existing","coa.urban.no.existing", "CL_EIA1","CL_EIA2","CL_EIA3O1","CL_EIA3O2","CL_EIA4")
-  dev.label <- c("1. Urban","2. Industrial","3. Rural Residential", "4. Infrastructure", "5. Forestry", "6. Mining", "7. Cumulative","1.1 EIA1","1.2 EIA2", "1.3a EIA3 Option1", "1.3b EIA3 Option2", "1.4 Development Footprint","1.1 EIA1 existing","1.2 EIA2 existing", "1.3a EIA3 Option1 existing", "1.3b EIA3 Option2 existing", "1.4 Development Footprint existing","1a. Urban","EIA1","EIA2","EIA3O1","EIA3O2","EIA4")
+  development <- c("scenario1_urban","scenario2_industrial","scenario3_ruralres","scenario4_infrastructure","scenario5_pines","scenario6_brm","scenario7_cumulative","scenario1_1_eia1","scenario1_2_eia2", "scenario1_3a_eia3_option1", "scenario1_3b_eia3_option2", "scenario1_4_development_footprint","scenario1_1_eia1_existing","scenario1_2_eia2_existing", "scenario1_3a_eia3_option1_existing", "scenario1_3b_eia3_option2_existing", "scenario1_4_development_footprint_existing","coa.urban.no.existing", "CL_EIA1","CL_EIA2","CL_EIA3O1","CL_EIA3O2","CL_EIA4","scenario_cumulative1","scenario_cumulative3","scenario_cumulative3")
+  dev.label <- c("1. Urban","2. Industrial","3. Rural Residential", "4. Infrastructure", "5. Forestry", "6. Mining", "7. Cumulative","1.1 EIA1","1.2 EIA2", "1.3a EIA3 Option1", "1.3b EIA3 Option2", "1.4 Development Footprint","1.1 EIA1 existing","1.2 EIA2 existing", "1.3a EIA3 Option1 existing", "1.3b EIA3 Option2 existing", "1.4 Development Footprint existing","1a. Urban","EIA1","EIA2","EIA3O1","EIA3O2","EIA4","Cumulative V1","Cumulative V2", "Cumulative V3")
 
   conflict.table <- data.frame(scenario=dev.label,top.conflict.area=NA,protected.conflict.area=NA,prop.dev.t30=NA,prop.dev.pa=NA,prop.top=NA,prop.protected=NA,prop.protected1=NA,prop.protected2=NA,prop.protected3=NA, mask.layer=development)
   # conflict.table <- conflict.table[order(conflict.table$scenario),]
@@ -444,8 +444,8 @@ write.csv(conflict.table,paste0(output_path,"tables/CL_conflict.table_",analysis
 
   loss.table$mask.layer <- gsub('.curves.txt', '', gsub(paste0("_",analysis.date,".CAZ_ME"), "",gsub("CL.","",loss.files)))
     loss.table$mask.layer <- gsub('EIA','CL_EIA',loss.table$mask.layer)
-  loss.table$scenario <- c("EIA1","EIA2","EIA3O1","EIA3O2","EIA4","1.1 EIA1","1.1 EIA1 existing","1.2 EIA2","1.2 EIA2 existing", "1.3a EIA3 Option1", "1.3a EIA3 Option1 existing", "1.3b EIA3 Option2", "1.3b EIA3 Option2 existing", "1.4 Development Footprint", "1.4 Development Footprint existing", "1. Urban","2. Industrial","3. Rural Residential", "4. Infrastructure", "5. Forestry", "6. Mining", "7. Cumulative")
-  loss.table$order <- c(18,19,20,21,22,8,13,9,14,10,15,11,16,12,17,1,2,3,4,5,6,7)
+  loss.table$scenario <- c("EIA1","EIA2","EIA3O1","EIA3O2","EIA4","Cumulative V1","Cumulative V2","Cumulative V3","1.1 EIA1","1.1 EIA1 existing","1.2 EIA2","1.2 EIA2 existing", "1.3a EIA3 Option1", "1.3a EIA3 Option1 existing", "1.3b EIA3 Option2", "1.3b EIA3 Option2 existing", "1.4 Development Footprint", "1.4 Development Footprint existing", "1. Urban","2. Industrial","3. Rural Residential", "4. Infrastructure", "5. Forestry", "6. Mining", "7. Cumulative")
+  loss.table$order <- c(18,19,20,21,22,23,24,25,8,13,9,14,10,15,11,16,12,17,1,2,3,4,5,6,7)
   
   # calculating impact numbers for each scenario
   for (h in 1:length(loss.files)){
