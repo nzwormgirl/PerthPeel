@@ -8,13 +8,13 @@ output: html_document
 
 ```{r set up}
 rm(list=ls())
-packages(raster)
-packages(maptools)
-packages(colorRamps)
-packages(fields)
-packages(RColorBrewer)
-packages(reshape)
-packages(ggplot2)
+library(raster)
+library(maptools)
+library(colorRamps)
+library(fields)
+library(RColorBrewer)
+library(reshape)
+library(ggplot2)
 
   GDA94.50 <- CRS("+proj=utm +zone=50 +south +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs")
   GDA94 <- CRS("+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs")
@@ -36,6 +36,9 @@ output_path <- paste0(computer,'/GIS_data/Perth-Peel/zonation/100m/Conservation_
   analysis.date <- '20160112'
 
   save.plots <- TRUE
+  
+  load(paste0(output_path,"Analysis of Zonation runs from ",analysis.date,".Rdata"))
+
 ```
 
 ```{r useful functions}
@@ -578,8 +581,9 @@ write.csv(conflict.table,paste0(output_path,"tables/CL_conflict.table_",analysis
   
   # subset special sp.table for Figure 4
   
-  Fig4_table <- special.sp.table[,c("scenario","cleared","mean.loss","Caladenia_huegelii","Drakaea_elastica","Calyptorhynchus_latirostris","Pseudocheirus_occidentalis","Conospermum_undulatum")]
-    Fig4_table <- Fig4_table[Fig4_table$scenario %in% c("1.1 EIA1 existing","1.2 EIA2 existing","1. Urban","EIA1","EIA2","EIA3O1","EIA3O2","EIA4"),]
+  Fig4_table <- special.sp.table[,c("scenario","cleared","mean.loss","Caladenia_huegelii","Drakaea_elastica","Calyptorhynchus_latirostris","Pseudocheirus_occidentalis","Conospermum_undulatum","cleared.ha")]
+    Fig4_table <- Fig4_table[Fig4_table$scenario %in% c("Cumulative V1","Cumulative V3","7. Cumulative"),]
+    Fig4_table <- Fig4_table[order(Fig4_table$cleared.ha,decreasing = T),]
     
   write.csv(Fig4_table,paste0(output_path,"tables/Figure4_special.sp.table_",analysis.date,".csv"),row.names=F)
 
