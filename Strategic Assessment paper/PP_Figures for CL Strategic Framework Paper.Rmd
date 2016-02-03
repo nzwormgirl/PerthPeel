@@ -156,8 +156,8 @@ leg.labels <- c("top 5%","top 10%","top 15%","top 30%","rest")
 #lay.out <- matrix(c(1,1,1,1,1,2,2,2,2,2,3,4,5,6,7),5,3,byrow=F)
 #layout(lay.out,widths = c(0.4,0.4,0.2))
 
-png(paste0(output_path,"figures/Figure2.png"),height=14,width=17.3,units="cm",res=300, bg="transparent",pointsize=10)
-# pdf(paste0(output_path,"Figure2.pdf"),height=140*0.0393700787,width=173*0.0393700787,pointsize=10)
+# png(paste0(output_path,"figures/Figure2.png"),height=14,width=17.3,units="cm",res=300, bg="transparent",pointsize=10)
+pdf(paste0(output_path,"figures/Figure2.pdf"),height=140*0.0393700787,width=173*0.0393700787,pointsize=10)
 lay.out <- layout(matrix(c(1,1,1,1,1,2,2,2,2,2,3,4,5,6,7),5,3,byrow=F),widths = c(0.4,0.4,0.2))
 
 
@@ -450,13 +450,13 @@ par(mar=c(0,0,0,0), oma=c(0,0.5,0,0))
   development <- c(names(sp.impacts[1:(ncol(sp.impacts)-1)]))
   dev.label <- c("EIA1","EIA2","EIA3O1","EIA3O2","Development footprint","1. Urban","2. Industrial","3. Rural residential","4. Infrastructure","5. Forestry", "6. Mining", "7. Cumulative")
 
-  png(paste0(output_path,"figures/Figure3.png"),height=62,width=82,units="mm",bg="transparent",pointsize=9,res=600)
-  # pdf(paste0(output_path,"Figure3.pdf"),height=62*0.0393700787,width=82*0.0393700787,pointsize=10)
+  # png(paste0(output_path,"figures/Figure3.png"),height=62,width=82,units="mm",bg="transparent",pointsize=9,res=600)
+  pdf(paste0(output_path,"figures/Figure3.pdf"),height=62*0.0393700787,width=82*0.0393700787,pointsize=10)
     par(las=1,mar=c(4,8,1,1),oma=c(0,0,0,0),lwd=0.5)
     boxplot(sp.impacts[,c(development[12:6])],names=dev.label[12:6],horizontal = T,xlab=paste0("Proportion of feature distributions","\n","lost to development"), yaxt="n",xaxt="n",lwd=0.5)
       axis(2,labels=F,lwd=0.5)
       axis(1,labels=c("0.00","0.25","0.50","0.75","1.00"),at=seq(0,1,by=0.25),lwd=0.5)
-      text(x=-0.7,y=seq_along(dev.label[6:12]),labels=dev.label[12:6],xpd=NA,adj=0)
+      text(x=-0.85,y=seq_along(dev.label[6:12]),labels=dev.label[12:6],xpd=NA,adj=0)
   dev.off()
 
 ```
