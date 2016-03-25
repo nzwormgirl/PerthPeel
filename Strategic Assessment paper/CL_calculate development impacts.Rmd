@@ -512,6 +512,10 @@ write.csv(conflict.table,paste0(output_path,"tables/CL_conflict.table_",analysis
 ```{r link to horrenda table}
 # load horrenda table
   protected.species <- read.csv(paste0(computer,"/GIS_data/Perth-Peel/species data/WA listed protected species.csv"))
+  
+  impacted.species <- data.frame(scenario=NA,distribution.loss=NA,Biodiversity.Feature=NA,Common.Name=NA,Taxa=NA,MNES=NA,WA.Status=NA,EPBC.Status=NA,Endemism=NA,Data.Type=NA)
+  
+  loss.level <- c("100%",">90%",">75%",">50%")
 
 # at risk species
   for(h in seq(loss.files)){
@@ -519,21 +523,40 @@ write.csv(conflict.table,paste0(output_path,"tables/CL_conflict.table_",analysis
     for(j in c(16:19)){
     
       try({
-        sp <- strsplit(loss.table[h,j],",")
-          for(i in seq(sp[[1]])){
+        sp <- as.data.frame(strsplit(loss.table[h,j],",|\\)|\\("))
+        sp <- trim(as.character(sp[grepl(" ",sp[,1],perl=TRUE)==TRUE,]))
+          for(i in seq(sp)){
             mnes <- ""
-            sdm <- ""
+            data.type <- ""
             taxa <- ""
-            species <- trim(sp[[1]][i])
+            common.name <- ""
+            wa.status <- ""
+            epbc.status <- ""
+            epbc.marine <- ""
+            epbc.mig <- ""
+            endemism <- ""
+            species <- sp[i]
             try({
               if(!is.na(protected.species$mnes[protected.species$Scientific.Name==species])==TRUE) mnes <- "MNES"
-              if(protected.species$final.records[grepl(species,protected.species$Scientific.Name)]<20) sdm <- "SSI"
+              data.type <- as.character(protected.species$datatype[protected.species$Scientific.Name==species])
               taxa <- protected.species$Taxa[protected.species$Scientific.Name==species]
                 taxa <- gsub("\\b(\\w)","\\U\\1",gsub("s","",taxa), perl=TRUE)
-              sp[[1]][i] <- paste0(species," (",gsub("^,|$,","",(paste(mnes,sdm,taxa,sep=","))),")")
+              common.name <- ifelse(is.null( protected.species$AcceptedCommonName[protected.species$Scientific.Name==species]),"",as.character(protected.species$AcceptedCommonName[protected.species$Scientific.Name==species]))
+              wa.status <-  as.character(protected.species$WA_Status[protected.species$Scientific.Name==species])
+              epbc.status <- as.character(protected.species$EPBC_Status[protected.species$Scientific.Name==species])
+              epbc.marine <- ifelse( as.character(protected.species$EPBC_ListedMarine[protected.species$Scientific.Name==species])=="yes","Marine","")
+              epbc.mig <- ifelse( as.character(protected.species$EPBC_ListedMigratory[protected.species$Scientific.Name==species])=="yes","Marine","")
+              epbc.status <- paste(epbc.status, epbc.marine, epbc.mig, sep=",")
+              endemism <- as.character(protected.species$Endemism[protected.species$Scientific.Name==species])
+              
+              sp[i] <- paste0(species," (",gsub("^,|$,","",( paste(mnes,data.type,taxa,sep=","))),")")
+              
+              distribution.loss <- loss.level[j-15]
+              
+              impacted.species[nrow(impacted.species)+1,] <- cbind(loss.table$scenario[h],distribution.loss,species,common.name,taxa,mnes,wa.status,epbc.status,endemism,data.type)
               })
           }
-        loss.table[h,j] <- paste(sp[[1]],collapse=", ")
+        loss.table[h,j] <- paste(sp,collapse=", ")
       })
     }
     
@@ -541,6 +564,18 @@ write.csv(conflict.table,paste0(output_path,"tables/CL_conflict.table_",analysis
 
   # output table with summary of each scenario's impacts
  write.csv(loss.table, paste0(output_path, 'tables/Table1_CL_loss_table_',analysis.date,'.csv'), row.names=F)
+ 
+ 
+ # tidy impacted species table
+ impacted.species <- impacted.species[-1,]
+ 
+ impacted.species <- as.data.frame(apply(impacted.species, 2, function(y) gsub("not listed under the EPBC Act|not listed in WA|no status listed|unknown", "", y)))
+ impacted.species <- as.data.frame(apply(impacted.species, 2, function(y) gsub("Critically Endangered", "E", y)))
+ impacted.species <- as.data.frame(apply(impacted.species, 2, function(y) gsub("Endangered", "E", y)))
+ impacted.species <- as.data.frame(apply(impacted.species, 2, function(y) gsub("Vulnerable", "V", y)))
+ impacted.species$EPBC.Status <- gsub('([,])\\1+', ", ", gsub('^,*|,*$',"", impacted.species$EPBC.Status))
+ 
+ write.csv(impacted.species, paste0(output_path, 'tables/TableF2_CL_impacted_species',analysis.date,'.csv'), row.names=F)
 
 ```
 
