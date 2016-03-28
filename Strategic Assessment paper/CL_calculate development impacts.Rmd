@@ -509,75 +509,78 @@ write.csv(conflict.table,paste0(output_path,"tables/CL_conflict.table_",analysis
 
 ```
 
+
 ```{r link to horrenda table}
 # load horrenda table
   protected.species <- read.csv(paste0(computer,"/GIS_data/Perth-Peel/species data/WA listed protected species.csv"))
   
-  impacted.species <- data.frame(scenario=NA,distribution.loss=NA,Biodiversity.Feature=NA,Common.Name=NA,Taxa=NA,MNES=NA,WA.Status=NA,EPBC.Status=NA,Endemism=NA,Data.Type=NA)
+  # impacted.species <- data.frame(scenario=NA,distribution.loss=NA,Biodiversity.Feature=NA,Common.Name=NA,Taxa=NA,MNES=NA,WA.Status=NA,EPBC.Status=NA,Endemism=NA,Data.Type=NA)
+
+ impacted.species <- data.frame(scenario=NA,distribution.loss=NA,species=NA,common.name=NA,taxa=NA,mnes=NA,wa.status=NA,epbc.status=NA,endemism=NA,data.type=NA)  
+ 
+  extract.sp.attributes <- function(species){
+    sp.data <- protected.species[protected.species$Scientific.Name==species,]
+    
+    mnes <- ifelse(!is.na(sp.data$mnes),"TRUE","")
+    data.type <- as.character(sp.data$datatype)
+    taxa <- sp.data$Taxa
+      taxa <- gsub('Tec','TEC',gsub("\\b(\\w)","\\U\\1",gsub("s","",taxa), perl=TRUE))
+    common.name <- ifelse(!is.null(sp.data$AcceptedCommonName),as.character(sp.data$AcceptedCommonName), "")
+    wa.status <-  as.character(sp.data$WA_Status)
+      wa.status <- gsub("not listed in WA|no status listed|unknown", "", wa.status)
+    epbc.status <- as.character(sp.data$EPBC_Status)
+      epbc.status <- gsub("not listed under the EPBC Act|no status listed|unknown", "", epbc.status)
+    epbc.marine <- ifelse(as.character(sp.data$EPBC_ListedMarine)=="yes","Marine","")
+    epbc.mig <- ifelse(as.character(sp.data$EPBC_ListedMigratory)=="yes","Marine","")
+    epbc.status <- paste(epbc.status, epbc.marine, epbc.mig, sep=",")
+    endemism <- as.character(sp.data$Endemism)
+    
+    output <- cbind(species,common.name,taxa,mnes,wa.status,epbc.status,endemism,data.type)
+      output <- lapply(output, function(y) gsub("Critically Endangered", "CE", y))
+      output <- lapply(output, function(y) gsub("Endangered", "E", y))
+      output <- lapply(output, function(y) gsub("Vulnerable", "V", y))
+      output <- lapply(output, function(y) gsub('([,])\\1+', ", ", gsub('^,*|,*$',"", y)))
+      output <- as.data.frame(output)
+      colnames(output) <- c("species","common.name","taxa","mnes","wa.status","epbc.status","endemism","data.type")
+    return(output)
+  }
   
-  loss.level <- c("100%",">90%",">75%",">50%")
-
-# at risk species
-  for(h in seq(loss.files)){
-
-    for(j in c(16:19)){
+  extract.lost.sp <- function(data,scenario,loss.range){
+    output <- data.frame(scenario=NA,distribution.loss=NA,species=NA,common.name=NA,taxa=NA,mnes=NA,wa.status=NA,epbc.status=NA,endemism=NA,data.type=NA) 
     
-      try({
-        sp <- as.data.frame(strsplit(loss.table[h,j],",|\\)|\\("))
-        sp <- trim(as.character(sp[grepl(" ",sp[,1],perl=TRUE)==TRUE,]))
-          for(i in seq(sp)){
-            mnes <- ""
-            data.type <- ""
-            taxa <- ""
-            common.name <- ""
-            wa.status <- ""
-            epbc.status <- ""
-            epbc.marine <- ""
-            epbc.mig <- ""
-            endemism <- ""
-            species <- sp[i]
-            try({
-              if(!is.na(protected.species$mnes[protected.species$Scientific.Name==species])==TRUE) mnes <- "MNES"
-              data.type <- as.character(protected.species$datatype[protected.species$Scientific.Name==species])
-              taxa <- protected.species$Taxa[protected.species$Scientific.Name==species]
-                taxa <- gsub("\\b(\\w)","\\U\\1",gsub("s","",taxa), perl=TRUE)
-              common.name <- ifelse(is.null( protected.species$AcceptedCommonName[protected.species$Scientific.Name==species]),"",as.character(protected.species$AcceptedCommonName[protected.species$Scientific.Name==species]))
-              wa.status <-  as.character(protected.species$WA_Status[protected.species$Scientific.Name==species])
-              epbc.status <- as.character(protected.species$EPBC_Status[protected.species$Scientific.Name==species])
-              epbc.marine <- ifelse( as.character(protected.species$EPBC_ListedMarine[protected.species$Scientific.Name==species])=="yes","Marine","")
-              epbc.mig <- ifelse( as.character(protected.species$EPBC_ListedMigratory[protected.species$Scientific.Name==species])=="yes","Marine","")
-              epbc.status <- paste(epbc.status, epbc.marine, epbc.mig, sep=",")
-              endemism <- as.character(protected.species$Endemism[protected.species$Scientific.Name==species])
-              
-              sp[i] <- paste0(species," (",gsub("^,|$,","",( paste(mnes,data.type,taxa,sep=","))),")")
-              
-              distribution.loss <- loss.level[j-15]
-              
-              impacted.species[nrow(impacted.species)+1,] <- cbind(loss.table$scenario[h],distribution.loss,species,common.name,taxa,mnes,wa.status,epbc.status,endemism,data.type)
-              })
+    loss.data <- data[,c(scenario,"species")]
+    
+    for(i in seq(loss.range)){
+    
+      if(loss.range[i]==0){
+        lost.species <- loss.data[loss.data[1]==loss.range[i],]
+      } else {
+        lost.species <- loss.data[(loss.data[1]>loss.range[i-1] & loss.data[1]<=loss.range[i]),]
+        }
+        if(nrow(lost.species)!=0) {
+          for(k in seq(lost.species$species)){
+            species <- clean.names(lost.species$species[k])
+            species.data <- cbind(scenario=scenario, distribution.loss=ifelse(loss.range[i]==0,"100%",paste0(">",(1-loss.range[i])*100,"%")), extract.sp.attributes(species))
+            output <- rbind(output,species.data)
           }
-        loss.table[h,j] <- paste(sp,collapse=", ")
-      })
+        }
     }
-    
+    output <- output[complete.cases(output),]
+    return(output)
   }
 
-  # output table with summary of each scenario's impacts
- write.csv(loss.table, paste0(output_path, 'tables/Table1_CL_loss_table_',analysis.date,'.csv'), row.names=F)
- 
- 
+  for(i in seq(loss.files)){
+   impacted.species <- rbind(impacted.species,extract.lost.sp(distribution.table,scenario = loss.files[i],loss.range = c(0,0.1,0.25,0.5)))
+  }
+  
  # tidy impacted species table
- impacted.species <- impacted.species[-1,]
+   impacted.species <- impacted.species[complete.cases(impacted.species),]
+   colnames(impacted.species) <- c("Scenario","%.Distribution.Loss","Biodiversity.Feature","Common.Name","Taxa","MNES","WA.Status","EPBC.Status","Endemism","Data.Type")
  
- impacted.species <- as.data.frame(apply(impacted.species, 2, function(y) gsub("not listed under the EPBC Act|not listed in WA|no status listed|unknown", "", y)))
- impacted.species <- as.data.frame(apply(impacted.species, 2, function(y) gsub("Critically Endangered", "E", y)))
- impacted.species <- as.data.frame(apply(impacted.species, 2, function(y) gsub("Endangered", "E", y)))
- impacted.species <- as.data.frame(apply(impacted.species, 2, function(y) gsub("Vulnerable", "V", y)))
- impacted.species$EPBC.Status <- gsub('([,])\\1+', ", ", gsub('^,*|,*$',"", impacted.species$EPBC.Status))
- 
- write.csv(impacted.species, paste0(output_path, 'tables/TableF2_CL_impacted_species',analysis.date,'.csv'), row.names=F)
+ write.csv(impacted.species, paste0(output_path, 'tables/TableF2_CL_impacted_species_',analysis.date,'.csv'), row.names=F)
 
 ```
+
 
 ```{r calculate values for special species}
 # files <- gsub(paste0("_",analysis.date,'.CAZ_ME.curves.txt'),"",grep(paste0(analysis.date,'.CAZ_ME.curves.txt'), list.files(output_path), value=T))
