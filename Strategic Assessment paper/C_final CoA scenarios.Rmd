@@ -199,6 +199,48 @@ Make iterative cumulative scenarios
 ```
 
 
+1. Convert Phase 1 & Phase 2 to raster, clipping to the PPSA boundary
+2a. Flatten Existing PA layer to one value (6)
+2b. Extract high security protected areas (6)
+3a. Merge CR with PA - PA (6), Phase 1 (5), Phase 2 (4), rest (3), with CR status overwriting PA status.
+3b. Merge CR with PA-high - PA-high (6), Phase 1 (5), Phase 2 (4), rest (3), with CR status overwriting PA status.
+
+```{r proposed conservation reserves}
+  
+  conservation.reserves <-  readShapePoly( paste0(envi.directory, "CoA/DPaw_proposed_conservation_reserves/DPaW_Proposed_GGP_Conservation_Reserves_20160316.shp"))
+  
+  CR.phase1.raster <- create.raster(conservation.reserves[conservation.reserves$PRPhase=="Phase 1",], perth,  raster.label="CR_phase1", value=5, transform=TRUE,save = FALSE)
+    CR.phase1.raster[CR.phase1.raster==3] <- NA
+  CR.phase2.raster <- create.raster(conservation.reserves[conservation.reserves$PRPhase=="Phase 2",], perth, raster.label="CR_phase2", value=4, transform=TRUE,save=FALSE)
+    CR.phase2.raster[CR.phase2.raster==3] <- NA
+  
+  # load existing PA raster layer
+  PA.raster <- raster(paste0("protected.areas.tif"))
+    
+  # flatten all PA security levels
+  PA.raster.flat <- PA.raster
+    PA.raster.flat[PA.raster.flat>3] <- 6
+    
+  PA.raster.high <- PA.raster
+    PA.raster.high[PA.raster.high!=6] <- 3
+  writeRaster(PA.raster.high,filename="high_protected_areas", format="GTiff", overwrite=T)
+    
+  CR.raster <- merge(CR.phase1.raster,CR.phase2.raster,perth,filename="conservation_reserves", format="GTiff", overwrite=T)
+  CR.PA.raster <- merge(CR.phase1.raster,CR.phase2.raster,PA.raster.flat,filename="protected_areas_conservation_reserves", format="GTiff", overwrite=T)
+  CR.PA.high.raster <- merge(CR.phase1.raster,CR.phase2.raster,PA.raster.high,filename="high_protected_areas_conservation_reserves", format="GTiff", overwrite=T)
+
+  conservation.rasters <- c(PA.raster,CR.raster,CR.PA.high.raster)
+  
+  par(mfrow=c(1,3))
+  for(i in seq(conservation.rasters)) {
+    plot(conservation.rasters[[i]], main=names(conservation.rasters[[i]]), zlim=c(3,6),legend=F,axes=F,box=F)
+  }
+  
+  
+```
+
+
+
 All the scenarios need to be clipped by the vegetation layer to remove the areas that are already developed and, thus, not being considered.
 
 
