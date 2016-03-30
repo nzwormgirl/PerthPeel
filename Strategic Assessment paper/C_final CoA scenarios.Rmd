@@ -215,7 +215,7 @@ Make iterative cumulative scenarios
     CR.phase2.raster[CR.phase2.raster==3] <- NA
   
   # load existing PA raster layer
-  PA.raster <- raster(paste0("protected.areas.tif"))
+  PA.raster <- raster(paste0("protected_areas.tif"))
     
   # flatten all PA security levels
   PA.raster.flat <- PA.raster
@@ -224,10 +224,11 @@ Make iterative cumulative scenarios
   PA.raster.high <- PA.raster
     PA.raster.high[PA.raster.high!=6] <- 3
   writeRaster(PA.raster.high,filename="high_protected_areas", format="GTiff", overwrite=T)
+    PA.raster.high[PA.raster.high!=6] <- NA
     
   CR.raster <- merge(CR.phase1.raster,CR.phase2.raster,perth,filename="conservation_reserves", format="GTiff", overwrite=T)
-  CR.PA.raster <- merge(CR.phase1.raster,CR.phase2.raster,PA.raster.flat,filename="protected_areas_conservation_reserves", format="GTiff", overwrite=T)
-  CR.PA.high.raster <- merge(CR.phase1.raster,CR.phase2.raster,PA.raster.high,filename="high_protected_areas_conservation_reserves", format="GTiff", overwrite=T)
+  # CR.PA.raster <- merge(CR.phase1.raster,CR.phase2.raster,PA.raster.flat,filename="protected_areas_conservation_reserves", format="GTiff", overwrite=T)
+  CR.PA.high.raster <- merge(PA.raster.high,CR.phase1.raster,CR.phase2.raster,filename="high_protected_areas_conservation_reserves", format="GTiff", overwrite=T)
 
   conservation.rasters <- c(PA.raster,CR.raster,CR.PA.high.raster)
   
