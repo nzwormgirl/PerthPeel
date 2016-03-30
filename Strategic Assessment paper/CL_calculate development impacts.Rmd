@@ -47,6 +47,38 @@ output_path <- paste0(computer,'/GIS_data/Perth-Peel/zonation/100m/Conservation_
   clean.names <- function (x) trim(gsub("_"," ",gsub("PP|\\.tif|SSI\\.|\\/", "", x)))
   clean.scenarios <- function (x) trim(gsub(output_path,"", gsub(paste0("_",analysis.date),"", gsub("CL\\.|\\.CAZ_ME\\.curves\\.txt$|\\.CAZ_E\\.curves\\.txt","",x))))
   
+  extract.sp.attributes <- function(species){
+    
+    output<- data.frame(species=species,common.name="",taxa="",mnes="",wa.status="",epbc.status="",endemism="",data.type="")
+    
+    sp.data <- protected.species[protected.species$Scientific.Name==species,]
+    
+    if(nrow(sp.data)>0){
+      output$mnes <- ifelse(!is.na(sp.data$mnes),"TRUE","")
+      output$data.type <- as.character(sp.data$datatype)
+      output$taxa <- sp.data$Taxa
+        output$taxa <- gsub('Tec','TEC',gsub("\\b(\\w)","\\U\\1",gsub("s","",output$taxa), perl=TRUE))
+      output$common.name <- ifelse(!is.null(sp.data$AcceptedCommonName),as.character(sp.data$AcceptedCommonName), "")
+      output$wa.status <-  as.character(sp.data$WA_Status)
+        output$wa.status <- gsub("not listed in WA|no status listed|unknown", "", output$wa.status)
+      epbc.status <- as.character(sp.data$EPBC_Status)
+        output$epbc.status <- gsub("not listed under the EPBC Act|no status listed|unknown", "", output$epbc.status)
+      epbc.marine <- ifelse(as.character(sp.data$EPBC_ListedMarine)=="yes","Marine","")
+      epbc.mig <- ifelse(as.character(sp.data$EPBC_ListedMigratory)=="yes","Marine","")
+      output$epbc.status <- paste(output$epbc.status, epbc.marine, epbc.mig, sep=",")
+      output$endemism <- as.character(sp.data$Endemism)
+    }
+    
+    # output <- cbind(species,common.name,taxa,mnes,wa.status,epbc.status,endemism,data.type)
+      output <- lapply(output, function(y) gsub("Critically Endangered", "CE", y))
+      output <- lapply(output, function(y) gsub("Endangered", "E", y))
+      output <- lapply(output, function(y) gsub("Vulnerable", "V", y))
+      output <- lapply(output, function(y) gsub('([,])\\1+', ", ", gsub('^,*|,*$',"", y)))
+      output <- as.data.frame(output)
+      colnames(output) <- c("species","common.name","taxa","mnes","wa.status","epbc.status","endemism","data.type")
+    return(output)
+  }
+  
 ```
 
 
@@ -74,16 +106,27 @@ leg.labels <- c("top 5%","top 10%","top 15%","top 30%","rest")
 
 ```
 
+```{r identify relevant analysis files}
+
+  # input scenario rasters
+  scenario.files <- dir(paste0(input_path,"scenarios/"),pattern=".tif$",full.names=T)  
+
+  # get names of Zonation curves-files (you can also do this manually)
+  Z.curves <- grep('.curves.txt', list.files(output_path), value=T)
+    Z.curves <- Z.curves[grep(analysis.date,Z.curves)]
+    
+  # get names of Zonation raster outputs (you can also do this manually)
+  Z.rasters <- grep('.tif', list.files(output_path), value=T)
+    Z.rasters <- Z.rasters[grepl(analysis.date,Z.rasters) & grepl("rank",Z.rasters)]
+    
+```
+
+
 ```{r import curve data}
 # LH General impact assessment
 
-# get names of Zonation curves-files (you can also do this manually)
-files <- grep('.curves.txt', list.files(output_path), value=T)
-  files <- files[grep(analysis.date,files)]
-  files <- files[!grepl("baseline",files)] # remove baseline scenario & scenarios with protected areas
-
 # check for species that have zero observations at the start of the prioritisation
-  baseline.curves <- read.table(paste0(output_path,"CL.baseline_",analysis.date,".CAZ_E.curves.txt"), skip=1, header=F, sep='')
+  baseline.curves <- read.table(paste0(output_path,Z.curves[grepl("baseline",Z.curves)]), skip=1, header=F, sep='')
       colnames(baseline.curves) <- c('Prop_landscape_lost', 'cost_needed_for_top_fraction', 'min_prop_rem', 'ave_prop_rem', 'W_prop_rem', 'ext-1', 'ext-2', names)
   zero.obs <- baseline.curves[1,8:ncol(baseline.curves)]
     names(zero.obs[which(zero.obs==0)])
@@ -114,7 +157,6 @@ for(i in seq(baseline.sp.dist$top.fraction)){
 ```{r identify cleared area}
 # how much area is cleared in each impact scenario?
 # import scenario rasters
-      scenario.files <- dir(paste0(input_path,"Conservation_Letters/final/scenarios/"),pattern=".tif$",full.names=T)
       scenarios <- stack(scenario.files)
       scenario.names <- names(scenarios)
       
@@ -144,7 +186,7 @@ tryCatch({
 
 ```{r produce baseline priority map}
 
-  zonation_priority <- raster(paste0(output_path,"CL.baseline_",analysis.date,".CAZ_E.rank.compressed.tif"))
+  zonation_priority <- raster(paste0(output_path,Z.rasters[grepl("baseline",Z.rasters)]))
   
   PP.mask <- raster(paste0(computer,"/GIS_Data/Perth-Peel/mask files/perth.mask.tif"))
   PP.clipping.mask <- zonation_priority
@@ -224,7 +266,132 @@ tryCatch({
 
 ```
 
+Assess the three protected area scenarios
+1. Existing protected areas
+2. High security existing protected areas
+3. Proposed conservation reserves + High security existing protected areas
+
 ```{r whats already protected}
+  # identify the protected area scenarios
+    protected.scenario.files <- gsub(paste0(input_path,"scenarios/"),"",scenario.files[grepl("protected",scenario.files) & !grepl("clipped",scenario.files)])
+      protected.scenario.files <- gsub(".tif","",protected.scenario.files[protected.scenario.files != "protected_areas_conservation_reserves.tif"])
+      
+  # create empty table for outputs
+  protected.table <- data.frame(scenario=NA,security.level=NA,area=NA,protected.priorities=NA,mean.dist=NA,area.cum=NA,protected.priorities.cum=NA,n.sp.cum=NA,mean.zonation.cum=NA,min.zonation.cum=NA,protected.vegetation.cum=NA,protected.vegetation=NA,mean.dist.cum=NA,min.dist=NA,se.dist=NA,raster.value=NA) 
+  
+  unprotected.species <- data.frame(scenario=NA,security=NA,species=NA,common.name=NA,taxa=NA,mnes=NA,wa.status=NA,epbc.status=NA,endemism=NA,data.type=NA)
+    
+  # Loop through each scenario, generating outputs
+    
+calculate.protected <- function(input.scenario){
+  cat(paste("Processing", input.scenario, "scenario"),"\n")
+    
+  scenario.output <- paste(input.scenario,analysis.date,sep="_")
+  # read curves file
+  protected.curves <- read.table(paste0(output_path,"CL.",scenario.output,".CAZ_ME.curves.txt"), skip=1, header=F, sep='')
+      colnames(protected.curves) <- c('Prop_landscape_lost', 'cost_needed_for_top_fraction', 'min_prop_rem', 'ave_prop_rem', 'W_prop_rem', 'ext-1', 'ext-2', names)
+
+  # import scenario raster
+  protected.areas <- raster(scenario.files[grepl(paste0("scenarios/",input.scenario,".tif"),scenario.files)])
+  protected.areas.clipped <- raster(scenario.files[grepl(paste0("scenarios/",input.scenario,"_clipped.tif"),scenario.files)])
+  
+  PAs <- protected.areas.clipped
+  PAs[PAs==3] <- NA
+
+  PA.levels <-  freq(PAs)[,1] 
+    PA.levels <- sort(PA.levels[!is.na(PA.levels)],decreasing=T)
+    
+    output <- data.frame(scenario=input.scenario,security.level=NA,area=NA,protected.priorities=NA,mean.dist=NA,area.cum=NA,protected.priorities.cum=NA,n.sp.cum=NA,mean.zonation.cum=NA,min.zonation.cum=NA,protected.vegetation.cum=NA,protected.vegetation=NA,mean.dist.cum=NA,min.dist=NA,se.dist=NA,raster.value=PA.levels) 
+    
+  protected <- cleared_area$protected.ha[cleared_area$scenario==input.scenario]
+    protected.vegetation <- cleared_area$protected.[cleared_area$scenario==paste0(input.scenario,"_clipped")]
+  
+  for (h in 1:length(PA.levels)){
+    
+    if(grepl("conservation_reserves",input.scenario)){
+      output$security.level[h] <- ifelse(output$raster.value[h]==6,"Existing High",ifelse(output$raster.value[h]==5,"Phase 1","Phase 2"))
+    } else {
+      output$security.level[h] <- ifelse(output$raster.value[h]==6,"High",ifelse(output$raster.value[h]==5,"Medium","Low"))
+    }
+    
+    # identify area protected
+    protected <- length(protected.areas[protected.areas>=output$raster.value[h]])
+      protected.vegetation <- length(protected.areas.clipped[protected.areas.clipped>=output$raster.value[h]])/length(protected.areas.clipped[!is.na(protected.areas.clipped)])
+      
+      PAs <- protected.areas.clipped
+        PAs[PAs!=output$raster.value[h]] <- NA
+        
+    a <- protected.curves[which(protected.curves$Prop_landscape_lost>(1-protected.vegetation))[1],] # first line greater than cleared area - conservative
+    
+    # calculate impacts
+    output$area[h] <- protected
+      output$area.cum[h] <- output$area[h]
+    output$protected.vegetation[h] <- round(protected.vegetation*100,2)
+      output$protected.vegetation.cum[h] <- output$protected.vegetation[h]
+    output$protected.priorities[h] <- round(length(top.30[PAs])/length(top.30)*100,2)
+      output$protected.priorities.cum[h] <- output$protected.priorities[h]
+    output$mean.dist[h] <- round(a[, 4]*100,2)
+      output$mean.dist.cum[h] <- output$mean.dist[h]
+    output$min.dist[h] <- round(a[, 3]*100,2)
+      #output$min.dist.cum[h] <- output$min.dist[h]
+      
+      if(h>1){
+      output$area[h] <- output$area.cum[h] - output$area.cum[h-1]
+      output$protected.vegetation[h] <- output$protected.vegetation.cum[h] - output$protected.vegetation.cum[h-1]
+      output$mean.dist[h] <- output$mean.dist.cum[h] - output$mean.dist.cum[h-1]
+      output$protected.priorities.cum[h] <- output$protected.priorities.cum[h] + output$protected.priorities.cum[h-1]
+      }
+    
+    # how would zonation do with the same area?    
+    z <- baseline.curves[which(baseline.curves$Prop_landscape_lost>(1-protected.vegetation))[1],] # first line greater than cleared area - conservative
+    output$mean.zonation.cum[h] <- round(z[, 4]*100,2)
+    output$min.zonation.cum[h] <- round(z[, 3]*100,2)
+ # subset a to just keep species distribution data
+    a <- a[,8:ncol(a)]
+
+    output$se.dist[h] <- round(se(t(a))*100,2)
+    output$n.sp.cum[h] <- length(which(a == 0))
+    
+    if(h==1){
+      unprotected.sp <- clean.names(colnames(a[which(a==0)]))
+      
+      unprotected.table <- data.frame(scenario=NA,security=NA,species=NA,common.name=NA,taxa=NA,mnes=NA,wa.status=NA,epbc.status=NA,endemism=NA,data.type=NA)
+      
+      for(s in seq(unprotected.sp)){
+        unprotected.table <- rbind(unprotected.table, cbind(scenario=input.scenario,security=output$security.level[h],extract.sp.attributes(unprotected.sp[s])))
+      }
+    }
+  
+  }
+    
+    output.data <- list(protected.area.summary = output,unprotected.species  = unprotected.table)
+    return(output.data)
+    
+  }
+    
+
+  # loop through each protected area scenario
+  for(s in seq(protected.scenario.files)){
+    output.data <- calculate.protected(protected.scenario.files[s])
+    
+    protected.table <- rbind(protected.table,output.data$protected.area.summary)
+    unprotected.species <- rbind(unprotected.species,output.data$unprotected.species)
+  }
+  
+  protected.table <- protected.table[complete.cases(protected.table),]
+  unprotected.species <- unprotected.species[complete.cases(unprotected.species),]
+
+  write.csv(protected.table,paste0(output_path,"tables/CL_protected.table_",analysis.date,".csv"),row.names = F)
+  write.csv(unprotected.species, paste0(output_path, 'tables/TableD2_CL_unprotected_species_',analysis.date,'.csv'), row.names=F)
+  
+```
+
+Original protected area analysis
+
+
+```{r whats already protected}
+  protected.curve.files <- Z.curves[grepl("protected",Z.curves)]
+    
 # calculate the area currently protected
   protected.curves <- read.table(paste0(output_path,"CL.protected_areas_",analysis.date,".CAZ_ME.curves.txt"), skip=1, header=F, sep='')
       colnames(protected.curves) <- c('Prop_landscape_lost', 'cost_needed_for_top_fraction', 'min_prop_rem', 'ave_prop_rem', 'W_prop_rem', 'ext-1', 'ext-2', names)
@@ -281,13 +448,15 @@ for(h in seq(protected.table$scenario)){
     protected.table$min.zonation.cum[h] <- round(z[, 3]*100,2)
  # subset a to just keep species distribution data
     a <- a[,8:ncol(a)]
-    
-    if(h==1){
-      unprotected.sp <- clean.names(colnames(a[which(a==0)]))
-    }
 
     protected.table$se.dist[h] <- round(se(t(a))*100,2)
     protected.table$n.sp.cum[h] <- length(which(a == 0))
+    
+    if(h==1){
+      unprotected.sp <- clean.names(colnames(a[which(a==0)]))
+      
+      
+    }
  }
 
   write.csv(protected.table,paste0(output_path,"tables/CL_protected.table_",analysis.date,".csv"),row.names = F)
@@ -518,32 +687,6 @@ write.csv(conflict.table,paste0(output_path,"tables/CL_conflict.table_",analysis
 
  impacted.species <- data.frame(scenario=NA,distribution.loss=NA,species=NA,common.name=NA,taxa=NA,mnes=NA,wa.status=NA,epbc.status=NA,endemism=NA,data.type=NA)  
  
-  extract.sp.attributes <- function(species){
-    sp.data <- protected.species[protected.species$Scientific.Name==species,]
-    
-    mnes <- ifelse(!is.na(sp.data$mnes),"TRUE","")
-    data.type <- as.character(sp.data$datatype)
-    taxa <- sp.data$Taxa
-      taxa <- gsub('Tec','TEC',gsub("\\b(\\w)","\\U\\1",gsub("s","",taxa), perl=TRUE))
-    common.name <- ifelse(!is.null(sp.data$AcceptedCommonName),as.character(sp.data$AcceptedCommonName), "")
-    wa.status <-  as.character(sp.data$WA_Status)
-      wa.status <- gsub("not listed in WA|no status listed|unknown", "", wa.status)
-    epbc.status <- as.character(sp.data$EPBC_Status)
-      epbc.status <- gsub("not listed under the EPBC Act|no status listed|unknown", "", epbc.status)
-    epbc.marine <- ifelse(as.character(sp.data$EPBC_ListedMarine)=="yes","Marine","")
-    epbc.mig <- ifelse(as.character(sp.data$EPBC_ListedMigratory)=="yes","Marine","")
-    epbc.status <- paste(epbc.status, epbc.marine, epbc.mig, sep=",")
-    endemism <- as.character(sp.data$Endemism)
-    
-    output <- cbind(species,common.name,taxa,mnes,wa.status,epbc.status,endemism,data.type)
-      output <- lapply(output, function(y) gsub("Critically Endangered", "CE", y))
-      output <- lapply(output, function(y) gsub("Endangered", "E", y))
-      output <- lapply(output, function(y) gsub("Vulnerable", "V", y))
-      output <- lapply(output, function(y) gsub('([,])\\1+', ", ", gsub('^,*|,*$',"", y)))
-      output <- as.data.frame(output)
-      colnames(output) <- c("species","common.name","taxa","mnes","wa.status","epbc.status","endemism","data.type")
-    return(output)
-  }
   
   extract.lost.sp <- function(data,scenario,loss.range){
     output <- data.frame(scenario=NA,distribution.loss=NA,species=NA,common.name=NA,taxa=NA,mnes=NA,wa.status=NA,epbc.status=NA,endemism=NA,data.type=NA) 
