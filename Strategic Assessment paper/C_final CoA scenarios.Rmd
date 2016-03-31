@@ -198,6 +198,49 @@ Make iterative cumulative scenarios
 
 ```
 
+```{r Existing protected areas}
+    
+# Existing IUCN 1-4a
+  iucn1_4a <- readShapePoly(paste0(envi.directory, "CoA/Conservation_Package_Release_Web_March2016/DPaW_ExistingConsRes_IUCN1a_4_20150630.shp"))
+    iucn1_4a.raster <- create.raster(iucn1_4a, perth, raster.label = "DPaW_ExistingConsRes_IUCN1a_4_20150630", value=6,transform=T,save=F)
+
+  # DPAW Managed Lands
+  managed.lands <- readShapePoly(paste0(envi.directory, "DEC/DEC_ManagedLandsAndWaters_20120601.shp"))
+    managed.lands$IUCN[managed.lands$CATEGORY=="State Forest"] <- 6
+    
+    managed.lands4 <- create.raster(managed.lands[is.na(managed.lands$IUCN),],perth, raster.label="DEC_ManagedLandsAndWaters_20120601_No IUCN status", value=4,save=F)
+    
+    managed.lands <- managed.lands[!is.na(managed.lands$IUCN),]
+    
+    # State Forests (IUCN 6)
+    managed.lands5 <- create.raster(managed.lands[managed.lands$IUCN=="6",],perth, raster.label="DEC_ManagedLandsAndWaters_20120601_IUCN 6", value=5,save=F)
+    
+# Heritage
+world.heritage <- readShapePoly(paste0(envi.directory, "SEWPaC/PP_MNES_extract/PP_WHA_clip.shp"))
+  world.heritage6 <- create.raster(world.heritage,perth, raster.label="PP_WHA_clip", value=6,save=F)
+
+national.heritage <- readShapePoly(paste0(envi.directory, "SEWPaC/PP_MNES_extract/PP_NHL_clip.shp"))
+  national.heritage6 <- create.raster(national.heritage,perth, raster.label="PP_NHL_clip", value=6,save=F)
+
+commonwealth.heritage <- readShapePoly(paste0(envi.directory, "SEWPaC/PP_MNES_extract/PP_CHL_clip.shp"))
+  commonwealth.heritage6 <- create.raster(commonwealth.heritage,perth, raster.label="PP_CHL_clip", value=6,save=F)
+
+# Bush Forever
+bushforever.SP28 <- readShapePoly(paste0(envi.directory,"DOP/DoP_StatePlanningPolicy28_BushForeverReserves_20120823.shp"))
+  bushforever4 <- create.raster(bushforever.SP28,perth, raster.label="DoP_StatePlanningPolicy28_BushForeverReserves_20120823", value=4, transform=FALSE,save=F)
+
+#MRS
+parks.rec <- readShapePoly(paste0(envi.directory,"MRS_PRS/mrspoly_20120928.shp"))
+  parks.rec4 <- create.raster(parks.rec[(parks.rec$DESCRIPTIO=="PARKS & RECREATION" | parks.rec$DESCRIPTIO=="PARKS & RECREATION RESTRICTED"), ],perth, raster.label="mrspoly_20120928", value=4, transform=FALSE,save=F)
+
+#PRS
+open.space <- readShapePoly(paste0(envi.directory,"MRS_PRS/prspoly_20120928.shp"))
+  open.space4 <- create.raster(open.space[open.space$DESCRIPTIO=="REGIONAL OPEN SPACE" , ],perth, raster.label="prspoly_20120928", value=4, transform=FALSE,save=F)
+
+protected.areas <- calc(stack(iucn1_4a.raster,managed.lands4,managed.lands5,world.heritage6,national.heritage6,commonwealth.heritage6,bushforever4,parks.rec4,open.space4),fun=max, filename=paste0(envi.directory,"protected_areas"), format="GTiff",overwrite=T)
+  plot(protected.areas, main="Protected areas", zlim=c(3,6))
+
+```
 
 1. Convert Phase 1 & Phase 2 to raster, clipping to the PPSA boundary
 2a. Flatten Existing PA layer to one value (6)
@@ -228,7 +271,7 @@ Make iterative cumulative scenarios
     
   CR.raster <- merge(CR.phase1.raster,CR.phase2.raster,perth,filename="conservation_reserves", format="GTiff", overwrite=T)
   # CR.PA.raster <- merge(CR.phase1.raster,CR.phase2.raster,PA.raster.flat,filename="protected_areas_conservation_reserves", format="GTiff", overwrite=T)
-  CR.PA.high.raster <- merge(PA.raster.high,CR.phase1.raster,CR.phase2.raster,filename="high_protected_areas_conservation_reserves", format="GTiff", overwrite=T)
+  CR.PA.high.raster <- merge(PA.raster.high,CR.phase1.raster,CR.phase2.raster,perth,filename="high_protected_areas_conservation_reserves", format="GTiff", overwrite=T)
 
   conservation.rasters <- c(PA.raster,CR.raster,CR.PA.high.raster)
   
