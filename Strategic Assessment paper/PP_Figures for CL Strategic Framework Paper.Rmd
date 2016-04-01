@@ -464,45 +464,6 @@ par(mar=c(0,0,0,0), oma=c(0,0.5,0,0))
 
 ```
 
-```{r Figure S1 - protected priorities}
-
-  protected.areas <- scenarios[["protected_areas"]]
-  protected.areas.clipped <- scenarios[["protected_areas_clipped"]]
-
-  protected.areas.plot <- protected.areas
-    protected.areas.plot[protected.areas.plot==3] <- 0
-    protected.areas.plot[protected.areas.plot!=0] <- 1
-
-  protected.priorities <- merge(mask(protected.areas.plot + zonation_priority,top30),protected.areas)
-
-  png(paste0(output_path,"figures/Figure_D1_Protected_Areas.png"),height=14,width=17.5,units="cm",res=300, bg="transparent",pointsize=10)
-      par(mfrow=c(1,2),mar=c(0,0,0,2), oma=c(0,0,0,3),xpd=NA)
-      leg.labels <- c("Level 1", "Level 2", "Level 3")   
-        
-    plot(PP.clipping.mask,col="whitesmoke",legend=F,box=F,axes=F)
-      plot(protected.areas,col=pa.colours$colour[1:3],add=T,legend=F,zlim=c(4,6))
-      plot(PP.shp, add=T, lwd=0.5)
-  
-    legend("bottomright",inset=c(-0.15,0),xjust=1,leg.labels,col=rev(pa.colours$colour[1:3]),pch=15,bty="n",title="Protected Areas",cex=1,xpd=NA)
-    mtext("A",side=3,line=-1,adj=0, font=2)
-  
-  #     dev.off()
-  
-  # png(paste0(output_path,"Protected_Priorities.png"),height=20,width=15,units="cm",res=300, bg="transparent",pointsize = 12)
-  #     par(mfrow=c(1,1),mar=c(0,0.25,0.25,0.25), oma=c(0.25,0,0,4),xpd=NA)
-  leg.labels <- c("Top 5%","Top 10%","Top 15%","Top 30%","Protected priorities", "Protected areas")  
-  
-    plot(PP.clipping.mask,col="whitesmoke",legend=F,box=F,axes=F)
-  #     plot(protected.areas,col="grey70",add=T,legend=F,zlim=c(4,6))
-      plot(protected.priorities,add=T,col=c(NA,pri.col[2:5],"grey50",NA,"grey70"),breaks=c(0,0.7,0.85,0.9,0.95,1,2,4,6),legend=F)
-      plot(PP.shp, add=T, lwd=0.5)
-  
-  legend("bottomright",inset=c(-0.35,0),xjust=1,leg.labels,col=c(rev(pri.col[2:5]),"grey50", "grey70"),pch=15,bty="n",title="Conservation priority",cex=1,xpd=NA)
-    mtext("B",side=3,line=-1,adj=0, font=2)
-  dev.off()
-  
-
-```
 
 ```{r Figure E1 - protected priorities}
   
@@ -610,5 +571,70 @@ par(mar=c(0,0,0,0), oma=c(0,0.5,0,0))
       # mtext("D",side=3,line=-1,adj=0, font=2)
     dev.off()
 
+```
+
+
+```{r create raster function}
+create.raster <- function (s, mask.raster, raster.label, value, transform=TRUE, save=TRUE, plot=TRUE) {
+    
+   if(transform==TRUE) {
+     proj4string(s) <- "+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs"
+    s <- spTransform(s, CRS("+proj=utm +zone=50 +south +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs"))
+     }
+    
+  r <- rasterize(s,mask.raster)
+    r[!is.na(r)] <- value
+    r <- mask(merge(r,mask.raster),mask.raster)
+    
+    names(r) <- rep(raster.label,length(names(r)))
+    
+    if(save==TRUE) writeRaster(r,filename=paste0(output.directory,raster.label), format="GTiff", overwrite=T)
+    
+    if(plot==TRUE) plot(r, main=raster.label, zlim=c(1,6))
+
+    return(r)
+  }
+
+```
+
+```{r E1 - proposed CR expansion}
+  # load ibra mask to use as initial extent
+    ibra.mask <- raster(paste0(computer,"/GIS_data/Perth-Peel/mask files/pp_ibra_mask.tif"))
+  
+  # load proposed conservation reserves and convert to raster
+    conservation.reserves <-  readShapePoly( paste0(computer, "/GIS_data/Perth-Peel/CoA/DPaw_proposed_conservation_reserves/DPaW_Proposed_GGP_Conservation_Reserves_20160316.shp"))
+      proj4string(conservation.reserves) <- "+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs"
+      conservation.reserves <- spTransform(conservation.reserves, CRS("+proj=utm +zone=50 +south +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs"))
+    
+    CR.phase1.raster <- create.raster(conservation.reserves[conservation.reserves$PRPhase=="Phase 1",], ibra.mask,  raster.label="CR_phase1", value=5, save = FALSE,transform = F)
+      CR.phase1.raster[CR.phase1.raster==0] <- NA
+    
+    CR.phase2.raster <- create.raster(conservation.reserves[conservation.reserves$PRPhase=="Phase 2",], ibra.mask, raster.label="CR_phase2", value=4, save=FALSE,transform = F)
+      CR.phase2.raster[CR.phase2.raster==0] <- NA
+      
+  # load existing high security protected areas and convert to raster    
+    iucn1_4a <- readShapePoly(paste0(computer, "/GIS_data/Perth-Peel/CoA/Conservation_Package_Release_Web_March2016/DPaW_ExistingConsRes_IUCN1a_4_20150630.shp"))
+    iucn1_4a.raster <- create.raster(iucn1_4a, ibra.mask, raster.label = "DPaW_ExistingConsRes_IUCN1a_4_20150630", value=6,transform=T,save=F)
+      iucn1_4a.raster[iucn1_4a.raster==0] <- NA
+      
+    PP.clipping.mask.ibra <- resample(PP.clipping.mask,ibra.mask)
+      PP.clipping.mask.ibra[PP.clipping.mask.ibra==1] <- 3
+    
+  # merge all layers together &  crop to the extent of the CR
+    pa.cr.ibra.raster <- merge(iucn1_4a.raster,CR.phase1.raster,CR.phase2.raster,PP.clipping.mask.ibra)
+    
+    pa.cr.raster <- crop(pa.cr.ibra.raster,extent(conservation.reserves))
+
+    png(paste0(output_path,"figures/Figure_E1_proposed_conservation_reserves.png"),height=14,width=10,units="cm",res=300, bg="transparent",pointsize=10)
+      par(mfrow=c(1,1),mar=c(0,0,0,0), oma=c(0,0,0,0),xpd=NA)
+      
+      plot(pa.cr.raster,col=c(map.background,pa.colours$colour[c(7,6,3)]),legend=F,box=F,axes=F,zlim=c(3,6))
+        plot(PP.shp, add=T, lwd=1.5)
+        
+      leg.labels <- c("Existing High", "Phase 1", "Phase 2") 
+      legend("topright",inset=c(-0.15,0.05),xjust=1,leg.labels,col=rev(pa.colours$colour[c(7,6,3)]),pch=15,bty="n",title=paste0("Proposed","\n"," Conservation Reserves"),cex=1,xpd=NA)
+      
+    dev.off()
+    
 ```
 
