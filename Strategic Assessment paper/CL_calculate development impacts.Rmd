@@ -59,12 +59,13 @@ output_path <- paste0(computer,'/GIS_data/Perth-Peel/zonation/100m/Conservation_
       output$taxa <- sp.data$Taxa
         output$taxa <- gsub('Tec','TEC',gsub("\\b(\\w)","\\U\\1",gsub("s","",output$taxa), perl=TRUE))
       output$common.name <- ifelse(!is.null(sp.data$AcceptedCommonName),as.character(sp.data$AcceptedCommonName), "")
+        output$common.name <- gsub("unknown", "", output$common.name)
       output$wa.status <-  as.character(sp.data$WA_Status)
         output$wa.status <- gsub("not listed in WA|no status listed|unknown", "", output$wa.status)
       epbc.status <- as.character(sp.data$EPBC_Status)
         output$epbc.status <- gsub("not listed under the EPBC Act|no status listed|unknown", "", output$epbc.status)
       epbc.marine <- ifelse(as.character(sp.data$EPBC_ListedMarine)=="yes","Marine","")
-      epbc.mig <- ifelse(as.character(sp.data$EPBC_ListedMigratory)=="yes","Marine","")
+      epbc.mig <- ifelse(as.character(sp.data$EPBC_ListedMigratory)=="yes","Mig","")
       output$epbc.status <- paste(output$epbc.status, epbc.marine, epbc.mig, sep=",")
       output$endemism <- as.character(sp.data$Endemism)
     }
@@ -85,7 +86,7 @@ output_path <- paste0(computer,'/GIS_data/Perth-Peel/zonation/100m/Conservation_
 ```{r colour palettes}
 map.background <- "whitesmoke"
 
-pa.colours <- d(label=c("Level 3","Level 2","Level 3","Priority protected","Priority unprotected"),colour=c("#78c679","#31a354","#006837","#a6611a","grey40"),stringsAsFactors = F)
+pa.colours <- d(label=c("Level 1","Level 2","Level 3","Priority protected","Priority unprotected","Phase 1", "Phase 2"), colour=c("#78c679","#31a354","#006837","#a6611a","grey40","darkblue","cyan3"),stringsAsFactors = F)
 
 dev.colours <- d(label=c("Existing","Proposed","Cleared","Retained"),colour=c("grey60","#fdae61","#d7191c","#2c7bb6"),stringsAsFactors = F)
 
@@ -122,7 +123,7 @@ leg.labels <- c("top 5%","top 10%","top 15%","top 30%","rest")
 ```
 
 
-```{r import curve data}
+```{r import baseline data}
 # LH General impact assessment
 
 # check for species that have zero observations at the start of the prioritisation
@@ -303,9 +304,8 @@ calculate.protected <- function(input.scenario){
     
     output <- data.frame(scenario=input.scenario,security.level=NA,area=NA,protected.priorities=NA,mean.dist=NA,area.cum=NA,protected.priorities.cum=NA,n.sp.cum=NA,mean.zonation.cum=NA,min.zonation.cum=NA,protected.vegetation.cum=NA,protected.vegetation=NA,mean.dist.cum=NA,min.dist=NA,se.dist=NA,raster.value=PA.levels) 
     
-  protected <- cleared_area$protected.ha[cleared_area$scenario==input.scenario]
-    protected.vegetation <- cleared_area$protected.[cleared_area$scenario==paste0(input.scenario,"_clipped")]
-  
+    unprotected.table <- data.frame(scenario=NA,security=NA,species=NA,common.name=NA,taxa=NA,mnes=NA,wa.status=NA,epbc.status=NA,endemism=NA,data.type=NA)
+    
   for (h in 1:length(PA.levels)){
     
     if(grepl("conservation_reserves",input.scenario)){
@@ -316,7 +316,7 @@ calculate.protected <- function(input.scenario){
     
     # identify area protected
     protected <- length(protected.areas[protected.areas>=output$raster.value[h]])
-      protected.vegetation <- length(protected.areas.clipped[protected.areas.clipped>=output$raster.value[h]])/length(protected.areas.clipped[!is.na(protected.areas.clipped)])
+      protected.vegetation <- length(protected.areas.clipped[protected.areas.clipped>=output$raster.value[h]]) /length(protected.areas.clipped[!is.na(protected.areas.clipped)])
       
       PAs <- protected.areas.clipped
         PAs[PAs!=output$raster.value[h]] <- NA
@@ -325,16 +325,17 @@ calculate.protected <- function(input.scenario){
     
     # calculate impacts
     output$area[h] <- protected
-      output$area.cum[h] <- output$area[h]
     output$protected.vegetation[h] <- round(protected.vegetation*100,2)
-      output$protected.vegetation.cum[h] <- output$protected.vegetation[h]
     output$protected.priorities[h] <- round(length(top.30[PAs])/length(top.30)*100,2)
-      output$protected.priorities.cum[h] <- output$protected.priorities[h]
     output$mean.dist[h] <- round(a[, 4]*100,2)
-      output$mean.dist.cum[h] <- output$mean.dist[h]
     output$min.dist[h] <- round(a[, 3]*100,2)
-      #output$min.dist.cum[h] <- output$min.dist[h]
       
+    # calculate cumulative values
+      output$area.cum[h] <- output$area[h]
+      output$protected.vegetation.cum[h] <- output$protected.vegetation[h]
+      output$protected.priorities.cum[h] <- output$protected.priorities[h]
+      output$mean.dist.cum[h] <- output$mean.dist[h]
+    
       if(h>1){
       output$area[h] <- output$area.cum[h] - output$area.cum[h-1]
       output$protected.vegetation[h] <- output$protected.vegetation.cum[h] - output$protected.vegetation.cum[h-1]
@@ -352,18 +353,13 @@ calculate.protected <- function(input.scenario){
     output$se.dist[h] <- round(se(t(a))*100,2)
     output$n.sp.cum[h] <- length(which(a == 0))
     
-    if(h==1){
-      unprotected.sp <- clean.names(colnames(a[which(a==0)]))
-      
-      unprotected.table <- data.frame(scenario=NA,security=NA,species=NA,common.name=NA,taxa=NA,mnes=NA,wa.status=NA,epbc.status=NA,endemism=NA,data.type=NA)
+    unprotected.sp <- clean.names(colnames(a[which(a==0)]))
       
       for(s in seq(unprotected.sp)){
         unprotected.table <- rbind(unprotected.table, cbind(scenario=input.scenario,security=output$security.level[h],extract.sp.attributes(unprotected.sp[s])))
       }
     }
   
-  }
-    
     output.data <- list(protected.area.summary = output,unprotected.species  = unprotected.table)
     return(output.data)
     
@@ -382,118 +378,6 @@ calculate.protected <- function(input.scenario){
   unprotected.species <- unprotected.species[complete.cases(unprotected.species),]
 
   write.csv(protected.table,paste0(output_path,"tables/CL_protected.table_",analysis.date,".csv"),row.names = F)
-  write.csv(unprotected.species, paste0(output_path, 'tables/TableD2_CL_unprotected_species_',analysis.date,'.csv'), row.names=F)
-  
-```
-
-Original protected area analysis
-
-
-```{r whats already protected}
-  protected.curve.files <- Z.curves[grepl("protected",Z.curves)]
-    
-# calculate the area currently protected
-  protected.curves <- read.table(paste0(output_path,"CL.protected_areas_",analysis.date,".CAZ_ME.curves.txt"), skip=1, header=F, sep='')
-      colnames(protected.curves) <- c('Prop_landscape_lost', 'cost_needed_for_top_fraction', 'min_prop_rem', 'ave_prop_rem', 'W_prop_rem', 'ext-1', 'ext-2', names)
-
-  protected.index <- which(grepl("protected.areas",names(scenarios))==TRUE)
-  protected.areas <- scenarios[[protected.index[1]]]
-  protected.areas.clipped <- scenarios[[protected.index[2]]]
-  
-  PAs <- protected.areas.clipped
-  PAs[PAs==3] <- NA
-
-
-protected.table <- data.frame(scenario=c("protected.areas","protected.areas1","protected.areas2","protected.areas3"),security.level=c("All","High","Medium","Low"),area=NA,protected.priorities=NA,mean.dist=NA,area.cum=NA,protected.priorities.cum=NA,n.sp.cum=NA,mean.zonation.cum=NA,min.zonation.cum=NA,protected.vegetation.cum=NA,protected.vegetation=NA,mean.dist.cum=NA,min.dist=NA,se.dist=NA,raster.value=c(3,6,5,4)) 
-
-for(h in seq(protected.table$scenario)){
-# extract cleared area from clipped scenario
-    if(h == 1) {
-    protected <- cleared_area$protected.ha[cleared_area$scenario=="protected.areas"]
-    protected.vegetation <- cleared_area$protected[cleared_area$scenario=="protected.areas_clipped"]
-    PAs <- protected.areas.clipped
-      PAs[PAs==3] <- NA 
-    } else {
-      protected <- length(protected.areas[protected.areas>=protected.table$raster.value[h]])
-      protected.vegetation <- length(protected.areas.clipped[protected.areas.clipped>=protected.table$raster.value[h]])/length(protected.areas.clipped[!is.na(protected.areas.clipped)])
-      PAs <- protected.areas.clipped
-        PAs[PAs!=protected.table$raster.value[h]] <- NA 
-    }
-    a <- protected.curves[which(protected.curves$Prop_landscape_lost>(1-protected.vegetation))[1],] # first line greater than cleared area - conservative
-    #a <- curves[which.min(abs(curves$Prop_landscape_lost-cleared)),] # line closest in value to cleared area
-    
-    # calculate impacts
-    protected.table$area[h] <- protected
-      protected.table$area.cum[h] <- protected.table$area[h]
-    protected.table$protected.vegetation[h] <- round(protected.vegetation*100,2)
-      protected.table$protected.vegetation.cum[h] <- protected.table$protected.vegetation[h]
-    protected.table$protected.priorities[h] <- round(length(top.30[PAs])/length(top.30)*100,2)
-      protected.table$protected.priorities.cum[h] <- protected.table$protected.priorities[h]
-    protected.table$mean.dist[h] <- round(a[, 4]*100,2)
-      protected.table$mean.cum.dist[h] <- protected.table$mean.dist[h]
-    protected.table$min.dist[h] <- round(a[, 3]*100,2)
-      protected.table$min.dist.cum[h] <- protected.table$min.dist[h]
-    
-    if(h>=3){
-      protected.table$area[h] <- protected.table$area.cum[h] - protected.table$area.cum[h-1]
-      protected.table$protected.vegetation[h] <- protected.table$protected.vegetation.cum[h] - protected.table$protected.vegetation.cum[h-1]
-      protected.table$mean.dist[h] <- protected.table$mean.dist.cum[h] - protected.table$mean.dist.cum[h-1]
-      protected.table$protected.priorities.cum[h] <- protected.table$protected.priorities.cum[h] + protected.table$protected.priorities.cum[h-1]
-      
-    }
-
-# how would zonation do with the same area?    
-    z <- baseline.curves[which(baseline.curves$Prop_landscape_lost>(1-protected.vegetation))[1],] # first line greater than cleared area - conservative
-    protected.table$mean.zonation.cum[h] <- round(z[, 4]*100,2)
-    protected.table$min.zonation.cum[h] <- round(z[, 3]*100,2)
- # subset a to just keep species distribution data
-    a <- a[,8:ncol(a)]
-
-    protected.table$se.dist[h] <- round(se(t(a))*100,2)
-    protected.table$n.sp.cum[h] <- length(which(a == 0))
-    
-    if(h==1){
-      unprotected.sp <- clean.names(colnames(a[which(a==0)]))
-      
-      
-    }
- }
-
-  write.csv(protected.table,paste0(output_path,"tables/CL_protected.table_",analysis.date,".csv"),row.names = F)
-
-# load horrenda table
-  protected.species <- read.csv(paste0(computer,"/GIS_data/Perth-Peel/species data/WA listed protected species.csv"))
-
-  # at risk species
-  unprotected.species <- protected.species[protected.species$Scientific.Name %in% unprotected.sp, c("Scientific.Name","AcceptedCommonName","Taxa","mnes","WA_Status","EPBC_Status","Endemism","datatype","EPBC_ListedMigratory",	"EPBC_ListedMarine")]
-    for(i in 1:ncol(unprotected.species)){
-      unprotected.species[,i] <- as.character(unprotected.species[,i])
-    }  
-  
-    unprotected.species$AcceptedCommonName[grepl("unknown",unprotected.species$AcceptedCommonName)] <- ""
-    unprotected.species$mnes[is.na(unprotected.species$mnes)] <- ""
-    
-    status <- colnames(unprotected.species[grepl("Status",colnames(unprotected.species))])
-    
-    for(i in seq(status)){
-      unprotected.species[grepl("listed",unprotected.species[,status[i]]),status[i]] <- ""
-      unprotected.species[grepl("Critically Endangered",unprotected.species[,status[i]]),status[i]] <- "CE"
-      unprotected.species[grepl("Endangered",unprotected.species[,status[i]]),status[i]] <- "E"
-      unprotected.species[grepl("Vulnerable",unprotected.species[,status[i]]),status[i]] <- "V"
-      if(i==2) {
-        unprotected.species[grepl("yes",unprotected.species$EPBC_ListedMarine),status[i]] <- paste0(unprotected.species[grepl("yes",unprotected.species$EPBC_ListedMarine),status[i]], ", Marine")
-        unprotected.species[grepl("yes",unprotected.species$EPBC_ListedMigratory),status[i]] <- paste0(unprotected.species[grepl("yes",unprotected.species$EPBC_ListedMigratory),status[i]], ", Migratory")
-      }
-    }
-    
-    unprotected.species$EPBC_Status <- gsub("^\\,\\s", "",unprotected.species$EPBC_Status)
-      # unprotected.species$EPBC_Status[grepl("Sandpiper|Tern",unprotected.species$AcceptedCommonName)] <- "Migratory"
-    unprotected.species$Taxa <- gsub("\\b(\\w)","\\U\\1",gsub("tec","TEC",gsub("s","",unprotected.species$Taxa)), perl=TRUE)
-    
-    unprotected.species <- unprotected.species[,c("Scientific.Name","AcceptedCommonName","Taxa","mnes","WA_Status","EPBC_Status","Endemism","datatype")]
-    
-    colnames(unprotected.species) <- c("Biodiversity.Feature","Common.Name","Taxa","MNES","WA.Status","EPBC.Status","Endemism","Data.Type")
-
   write.csv(unprotected.species, paste0(output_path, 'tables/TableD2_CL_unprotected_species_',analysis.date,'.csv'), row.names=F)
   
 ```
