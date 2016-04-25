@@ -167,6 +167,28 @@ create.raster <- function (s, mask.raster, raster.label, value, transform=TRUE, 
   
 ```
 
+```{r directions2031-GGP comparison}
+# Green Growth Plan
+ master.plan <- readShapePoly(paste0(envi.directory,"DoP/DoP_MasterPlan_UrbanExpansionSites_20160314.shp"))
+    master.plan.raster <- create.raster(master.plan, perth, raster.label = "GGP_UrbanExpansion", value=1,transform=FALSE)
+ 
+# retention zones
+  specific.commitments <- readOGR(paste0(envi.directory,"DoP"),"DoP_SpecificCommitmentsArea_20160324")
+    specific.commitments.raster <- create.raster(specific.commitments, perth, raster.label = "SpecificCommitmentsArea", value=1,transform=FALSE,save=FALSE)
+    specific.commitments.raster[specific.commitments.raster==3] <-NA
+    
+    # remove retention zones from master planning scenario
+    master.plan.raster[specific.commitments.raster==1] <- 3
+    writeRaster(master.plan.raster,filename="GGP_UrbanExpansion_NoRetentionZones", format="GTiff", overwrite=T)
+    
+ 
+ # Directions 2031
+ urban.expansion <- readShapePoly(paste0(envi.directory,"DoP/DoP_UrbanExpansionInvestigation_20130328.shp"))
+  urban.expansion.raster <- create.raster(urban.expansion, perth, raster.label = "D2031_UrbanExpansion", value=1,transform=FALSE)
+ 
+ 
+```
+
 
 Make iterative cumulative scenarios
 
