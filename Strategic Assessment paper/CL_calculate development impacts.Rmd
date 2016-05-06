@@ -559,6 +559,9 @@ write.csv(conflict.table,paste0(output_path,"tables/CL_conflict.table_",analysis
   
   # output table with individual species impacts for each scenario
   write.csv(distribution.table, paste0(output_path, 'tables/CL_distribution.impacts_',analysis.date,'.csv'), row.names=F)
+  
+  # output loss table
+  write.csv()
 
 ```
 
@@ -605,6 +608,10 @@ write.csv(conflict.table,paste0(output_path,"tables/CL_conflict.table_",analysis
    colnames(impacted.species) <- c("Scenario","%.Distribution.Loss","Biodiversity.Feature","Common.Name","Taxa","MNES","WA.Status","EPBC.Status","Endemism","Data.Type")
  
  write.csv(impacted.species, paste0(output_path, 'tables/TableF2_CL_impacted_species_',analysis.date,'.csv'), row.names=F)
+ 
+   # output table with summary of each scenario's impacts
+ write.csv(loss.table, paste0(output_path, 'tables/Table1_CL_loss_table_',analysis.date,'.csv'), row.names=F)
+
 
 ```
 
