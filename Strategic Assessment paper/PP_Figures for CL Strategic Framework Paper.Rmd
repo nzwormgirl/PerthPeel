@@ -264,25 +264,25 @@ dev.off()
 
 ```{r EIA iterations}
 
-eia1 <- raster(paste0(input_path,"final/scenarios/CL_EIA1.tif"))
+eia1 <- raster(paste0(input_path,"scenarios/CL_EIA1.tif"))
   r <- eia1
   r[r!=2] <- NA
   r[!is.na(r)] <-1
 eia1.pri <- merge(r*zonation_priority,r*-1)
 
-eia2 <- raster(paste0(input_path,"final/scenarios/CL_EIA2.tif"))
+eia2 <- raster(paste0(input_path,"scenarios/CL_EIA2.tif"))
   r <- eia2
   r[r!=2] <- NA
   r[!is.na(r)] <-1
 eia2.pri <- merge(r*zonation_priority,r*-1)
 
-eia3o1 <- raster(paste0(input_path,"final/scenarios/CL_EIA3O1.tif"))
+eia3o1 <- raster(paste0(input_path,"scenarios/CL_EIA3O1.tif"))
   r <- eia3o1
   r[r!=2] <- NA
   r[!is.na(r)] <-1
 eia3o1.pri <- merge(r*zonation_priority,r*-1)
 
-eia3o2 <- raster(paste0(input_path,"final/scenarios/CL_EIA3O2.tif"))
+eia3o2 <- raster(paste0(input_path,"scenarios/CL_EIA3O2.tif"))
   r <- eia3o2
   r[r!=2] <- NA
   r[!is.na(r)] <-1
@@ -385,6 +385,108 @@ boxplot(1-distribution.table[,grepl("eia",colnames(distribution.table))],horizon
 dev.off()
 
 ```
+
+```{r D2031-GGP urban comparison}
+ 
+D2031 <- raster(paste0(input_path,"scenarios/D2031_UrbanExpansion.tif"))
+GGP <- raster(paste0(input_path,"scenarios/GGP_UrbanExpansion.tif"))
+GGP.NRZ <- raster(paste0(input_path,"scenarios/GGP_UrbanExpansion_NoRetentionZones.tif"))
+
+# identify retention zones
+RZ <- GGP - GGP.NRZ
+RZ[RZ==-2] <- 4
+RZ[RZ!=4] <- NA
+
+plotConflictT30 <- function(myRaster){
+    #myRaster <- GGP.NRZ
+    myRaster[myRaster==3] <- NA
+    myRasterT30 <- sum(myRaster,top30)
+    myRasterT30 <- merge(myRasterT30,myRaster)
+    names(myRasterT30) <- paste(names(myRaster),"T30")
+    return(myRasterT30)
+}
+D2031.pri <- plotConflictT30(D2031)
+
+GGP.pri <- plotConflictT30(GGP)
+GGP.RZ.pri <- merge(RZ,GGP.pri)
+
+inset_location <- c(390362,6393628)
+box.coordinates <- c(inset_location[1]-8500,inset_location[1]+8500,inset_location[2]-8500,inset_location[2]+8500)
+
+# png(paste0(output_path,"figures/D2031-GGP_top30_conflicts.png"),height=15,width=20,units="cm",res=300, bg="transparent",pointsize=14)
+
+svg(paste0(output_path,"figures/D2031-GGP_top30_conflicts.svg"),width = 15,height=15,bg = "transparent")
+
+
+  par(mfrow=c(1,2),mar=c(0.25,0.25,1.5,0.25), oma=c(0,0,0,0))
+  plot(PP.clipping.mask,col=map.background,legend=F,box=F,axes=F)
+    plot(D2031.pri,col=c(dev.colours$colour[1],"red"),legend=F,add=T)
+    plot(PP.shp, add=T, lwd=0.5)
+    rect(box.coordinates[1],box.coordinates[3],box.coordinates[2],box.coordinates[4])
+    # mtext("a) Directions 2031", side=3,line=0,adj=0)
+    
+  plot(PP.clipping.mask,col=map.background,legend=F,box=F,axes=F)
+    plot(GGP.RZ.pri,col=c(dev.colours$colour[1],"red","black"),legend=F,add=T)
+    plot(PP.shp, add=T, lwd=0.5)
+    rect(box.coordinates[1],box.coordinates[3],box.coordinates[2],box.coordinates[4])
+
+    # mtext("b) Green Growth Plan", side=3,line=0,adj=0)
+  
+dev.off()
+
+
+
+svg(paste0(output_path,"figures/D2031_GGP_inset.svg"),width = 10,height=5,bg = "transparent")
+par(mfrow=c(1,2),mar=c(0,0.5,0,0.5))
+plot(PP.clipping.mask,col=map.background,ann=F,axes=F,xlim=c(box.cordinates[1:2]),ylim=c(box.cordinates[3:4]),asp=1)
+
+    plot(D2031.pri,col=c(dev.colours$colour[1],"red"),ann=F,add=T,asp=1,legend=F,xlim=c(box.cordinates[1:2]),ylim=c(box.cordinates[3:4]))
+    plot(PP.shp, add=T, lwd=0.5)
+    box()
+    
+plot(PP.clipping.mask,col=map.background,ann=F,axes=F,xlim=c(box.cordinates[1:2]),ylim=c(box.cordinates[3:4]),asp=1)
+
+    plot(GGP.RZ.pri,col=c(dev.colours$colour[1],"red","black"),ann=F,add=T,asp=1,xlim=c(box.cordinates[1:2]),ylim=c(box.cordinates[3:4]))
+    plot(PP.shp, add=T, lwd=0.5)
+    box()
+dev.off()
+
+svg(paste0(output_path,"figures/D2031_inset.svg"),width = 5,height=5,bg = "transparent")
+par(mfrow=c(1,1),mar=c(0.5,0.5,0.5,0.5))    
+plot(PP.clipping.mask,col=map.background,ann=F,axes=F,xlim=c(box.coordinates[1:2]),ylim=c(box.coordinates[3:4]),asp=1,legend=F,box=F)
+
+    plot(D2031.pri,col=c(dev.colours$colour[1],"red"),ann=F,add=T,asp=1,legend=F,xlim=c(box.coordinates[1:2]),ylim=c(box.coordinates[3:4]))
+    # plot(PP.shp, add=T, lwd=0.5)
+    rect(box.coordinates[1],box.coordinates[3],box.coordinates[2],box.coordinates[4])
+dev.off()
+
+svg(paste0(output_path,"figures/GPP.RZ_inset.svg"),width = 5,height=5,bg = "transparent")
+par(mfrow=c(1,1),mar=c(0.5,0.5,0.5,0.5))    
+plot(PP.clipping.mask,col=map.background,ann=F,axes=F,xlim=c(box.coordinates[1:2]),ylim=c(box.coordinates[3:4]),asp=1,legend=F,box=F)
+
+    plot(GGP.RZ.pri,col=c(dev.colours$colour[1],"red","black"),ann=F,add=T,asp=1,legend=F,xlim=c(box.coordinates[1:2]),ylim=c(box.coordinates[3:4]))
+    # plot(PP.shp, add=T, lwd=0.5)
+    rect(box.coordinates[1],box.coordinates[3],box.coordinates[2],box.coordinates[4])
+dev.off()
+
+# png(paste0(output_path,"figures/D2031-GGP_top30_conflicts_inset.png"),height=15,width=20,units="cm",res=300, bg="transparent",pointsize=14)
+# lay.out <- layout(matrix(c(1,1,1,1,1,2,2,2,2,2,3,4,5,6,7),5,3,byrow=F),widths = c(0.4,0.4,0.2))
+# 
+#   # par(mfrow=c(1,2),mar=c(0.25,0.25,1.5,0.25), oma=c(0,0,0,0))
+#   plot(PP.clipping.mask,col=map.background,legend=F,box=F,axes=F)
+#     plot(D2031.pri,col=c(dev.colours$colour[1],"red"),legend=F,add=T)
+#     plot(PP.shp, add=T, lwd=0.5)
+#     mtext("a) Directions 2031", side=3,line=0,adj=0)
+#     
+#   plot(PP.clipping.mask,col=map.background,legend=F,box=F,axes=F)
+#     plot(GGP.RZ.pri,col=c(dev.colours$colour[1],"red","black"),legend=F,add=T)
+#     plot(PP.shp, add=T, lwd=0.5)
+#     mtext("b) Green Growth Plan", side=3,line=0,adj=0)
+#   
+# dev.off()
+
+```
+
 
 ```{r map of study region}
 
